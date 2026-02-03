@@ -1,11 +1,11 @@
 using System.Diagnostics;
+using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SeniorProject.Models;
 
 namespace SeniorProject.Controllers
 {
-    [Authorize(Roles = "Admin")]
 
     public class HomeController : Controller
     {

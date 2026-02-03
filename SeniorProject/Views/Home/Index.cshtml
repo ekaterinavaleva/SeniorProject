@@ -17,3 +17,9 @@
 {
     <h1>Hi Admin!</h1>
 }
+
+@if (User.IsInRole("Admin") || User.IsInRole("RetailManager"))
+{
+    <a asp-controller="RetailManager" asp-action="Upload">Upload ZIP</a>
+}
+
