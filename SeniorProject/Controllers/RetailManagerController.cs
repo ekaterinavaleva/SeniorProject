@@ -33,6 +33,12 @@ namespace SeniorProject.Controllers
             }
 
             string extractPath = Path.Combine(uploadFolder, "extracted");
+
+            if (Directory.Exists(extractPath))
+            {
+                Directory.Delete(extractPath, true);
+            }
+
             System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, extractPath);
 
             ViewBag.Message = "Upload successful!";

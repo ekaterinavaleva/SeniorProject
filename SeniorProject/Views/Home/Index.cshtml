@@ -8,18 +8,24 @@
     ViewData["Title"] = "Home Page";
 }
 
-<div class="text-center">
+@* <div class="text-center">
     <h1 class="display-4">Welcome</h1>
     <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+</div> *@
 
-@if (User.IsInRole("Admin"))
-{
-    <h1>Hi Admin!</h1>
-}
+
 
 @if (User.IsInRole("Admin") || User.IsInRole("RetailManager"))
 {
-    <a asp-controller="RetailManager" asp-action="Upload">Upload ZIP</a>
-}
+    <div class="alert alert-info mt-4">
+        <h3>Manager Tools</h3>
 
+        <a class="btn btn-primary" asp-controller="RetailManager" asp-action="Upload">
+            Go to Upload Portal
+        </a>
+
+        <a class="btn btn-secondary" asp-controller="RetailManagerMapping" asp-action="Index">
+            Open Product Mapping Tool
+        </a>
+    </div>
+}

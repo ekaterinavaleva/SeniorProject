@@ -1,0 +1,60 @@
+﻿@model List<string>
+
+<h2>Map product names to groups</h2>
+
+<form method="get" asp-action="Index">
+    <label>Group:</label>
+    <select name="groupId">
+        <option value="">-- Select group --</option>
+        <option value="1">Test Group (Dairy)</option>
+        <option value="2">Test Group (Meat)</option>
+    </select>
+
+    <label>Search:</label>
+    <input type="text" name="q" value="@ViewBag.Query" placeholder="e.g. добруджа, верея" />
+
+    <button type="submit">Search</button>
+</form>
+
+<hr />
+
+@if (ViewBag.GroupId == null)
+{
+    <p>Select a group to start scanning the files.</p>
+}
+else
+{
+    if (Model.Count == 0)
+    {
+        <p>No products found. Try a different search term.</p>
+    }
+    else
+    {
+        <p>Found @Model.Count product names .</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Product name</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var name in Model)
+                {
+                    <tr>
+                        <td>@name</td>
+                        <td>
+                            <form asp-action="Add" method="post">
+                                <input type="hidden" name="groupId" value="@ViewBag.GroupId" />
+                                <input type="hidden" name="productName" value="@name" />
+                                <button type="submit">Add to group</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
