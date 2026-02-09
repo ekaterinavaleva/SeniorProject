@@ -8,7 +8,7 @@ namespace SeniorProject.Data
         {
             using (var scope = services.CreateScope()) // this is to access the services
             {
-                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>(); //scope is to access the service provider
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>(); // to access the service provider
 
                 var roles = new[] { "Admin", "RetailManager", "User" }; // define the roles 
 
@@ -37,7 +37,7 @@ namespace SeniorProject.Data
 
                     await userManager.CreateAsync(user, password);
 
-                    // after creating it,we add it to the admin row
+                    // after creating it,we add it to the admin role
                     await userManager.AddToRoleAsync(user, "Admin");
                 }
             }

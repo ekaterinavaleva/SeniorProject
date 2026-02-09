@@ -13,5 +13,9 @@ namespace SeniorProject.Data
 
         public DbSet<Town> Towns { get; set; }
         public DbSet<RetailChain> RetailChains { get; set; }
+        public DbSet<ProductGroup> ProductGroups { get; set; } = default!;
+        public DbSet<ProductGroupItem> ProductGroupItems { get; set; } = default!;
+        public DbSet<ImportedProduct> ImportedProducts { get; set; } = default!;
+
     }
 }

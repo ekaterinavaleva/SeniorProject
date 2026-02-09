@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
 
 {
+    System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
     var builder = WebApplication.CreateBuilder(args);
     
     // Add services to the container.

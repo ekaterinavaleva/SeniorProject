@@ -39,7 +39,6 @@ namespace SeniorProject.Controllers
                                 // column index 2 is the product name in the files
                                 string name = cols[2].Replace("\"", "").Trim();
 
-                                // filter by search query if provided
                                 // directly add to list without filtering
                                 productNames.Add(name);
                             }
