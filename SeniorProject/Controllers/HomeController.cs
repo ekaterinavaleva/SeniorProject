@@ -22,7 +22,9 @@ namespace SeniorProject.Controllers
 
         public async Task<IActionResult> Index(string? q, int? townId, string? category)
         {
+            _db.Database.SetCommandTimeout(300); // 5 minutes timeout
             var query = _db.ImportedProducts
+                .AsNoTracking() // this is because the query times out otherwise
                 .Include(p => p.Town)
                 .Include(p => p.RetailChain)
                 .AsQueryable();

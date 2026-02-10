@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IO.Compression;
+using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
 using SeniorProject.Models;
 
@@ -50,97 +51,127 @@ namespace SeniorProject.Controllers
 
             System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, extractPath);
 
-            var encoding = System.Text.Encoding.GetEncoding(1251);
+            var encoding = System.Text.Encoding.UTF8;
+            _db.ChangeTracker.AutoDetectChangesEnabled = false;
+            _db.Database.SetCommandTimeout(300);
 
-            var categoryMap = new Dictionary<string, string>
+            try
             {
-                { "9", "Milk" },
-                { "24", "Beef" },
-                { "20", "Pork" }
-            };
-
-            var townMap = new Dictionary<string, string>
-            {
-                { "68134", "Sofia" },
-                { "56784", "Plovdiv" },
-                { "10135", "Varna" }
-            };
-
-            foreach (var file in Directory.GetFiles(extractPath, "*.csv", SearchOption.AllDirectories))
-            {
-                using (var reader = new StreamReader(file, encoding))
+                var categoryMap = new Dictionary<string, string>
                 {
-                    reader.ReadLine();
+                    { "9", "Milk" },
+                    { "24", "Beef" },
+                    { "20", "Pork" }
+                };
 
-                    while (!reader.EndOfStream)
+                var townMap = new Dictionary<string, string>
+                {
+                    { "68134", "Sofia" },
+                    { "56784", "Plovdiv" },
+                    { "10135", "Varna" }
+                };
+
+                var existingTowns = await _db.Towns.ToDictionaryAsync(t => t.Name, t => t.Id);
+                var existingChains = await _db.RetailChains.ToDictionaryAsync(c => c.Name, c => c.Id);
+                var newProducts = new List<ImportedProduct>();
+
+                foreach (var file in Directory.GetFiles(extractPath, "*.csv", SearchOption.AllDirectories))
+                {
+                    using (var reader = new StreamReader(file, encoding))
                     {
-                        var line = await reader.ReadLineAsync();
+                        reader.ReadLine();
 
-                        if (string.IsNullOrWhiteSpace(line)) continue;
-
-                        var cols = line.Split(new[] { "\",\"" }, StringSplitOptions.None);
-                        if (cols.Length < 7) continue;
-
-                        string townCode = cols[0].Trim('"');
-                        string productName = cols[2];
-                        string categoryCode = cols[4];
-                        string priceText = cols[5];
-                        string promoText = cols[6].Trim('"');
-
-                        string townName = townCode;
-                        if (townMap.ContainsKey(townCode))
+                        while (!reader.EndOfStream)
                         {
-                            townName = townMap[townCode];
-                        }
+                            var line = await reader.ReadLineAsync();
 
-                        string category = categoryCode;
-                        if (categoryMap.ContainsKey(categoryCode))
-                        {
-                            category = categoryMap[categoryCode];
-                        }
+                            if (string.IsNullOrWhiteSpace(line)) continue;
 
-                        decimal price = decimal.Parse(priceText, System.Globalization.CultureInfo.InvariantCulture);
+                            var cols = line.Split(new[] { "\",\"" }, StringSplitOptions.None);
+                            if (cols.Length < 7) continue;
 
-                        if (!string.IsNullOrEmpty(promoText))
-                        {
-                            decimal promo = decimal.Parse(promoText, System.Globalization.CultureInfo.InvariantCulture);
-                            if (promo > 0)
+                            string townCode = cols[0].Trim('"');
+                            string productName = cols[2];
+                            string categoryCode = cols[4];
+                            string priceText = cols[5];
+                            string promoText = cols[6].Trim('"');
+
+                            string townName = townCode;
+                            if (townMap.ContainsKey(townCode))
                             {
-                                price = promo;
+                                townName = townMap[townCode];
+                            }
+
+                            string category = categoryCode;
+                            if (categoryMap.ContainsKey(categoryCode))
+                            {
+                                category = categoryMap[categoryCode];
+                            }
+
+                            if (!decimal.TryParse(priceText, System.Globalization.CultureInfo.InvariantCulture, out decimal price))
+                            {
+                                continue;
+                            }
+
+                            if (!string.IsNullOrEmpty(promoText))
+                            {
+                                if (decimal.TryParse(promoText, System.Globalization.CultureInfo.InvariantCulture, out decimal promo) && promo > 0)
+                                {
+                                    price = promo;
+                                }
+                            }
+
+                            if (!existingTowns.ContainsKey(townName))
+                            {
+                                var newTown = new Town { Name = townName };
+                                _db.Towns.Add(newTown);
+                                await _db.SaveChangesAsync();
+                                existingTowns[townName] = newTown.Id;
+                            }
+                            int townId = existingTowns[townName];
+
+                            string chainName = cols[1];
+                            if (!existingChains.ContainsKey(chainName))
+                            {
+                                var newChain = new RetailChain { Name = chainName };
+                                _db.RetailChains.Add(newChain);
+                                await _db.SaveChangesAsync();
+                                existingChains[chainName] = newChain.Id;
+                            }
+                            int chainId = existingChains[chainName];
+
+                            var product = new ImportedProduct
+                            {
+                                Name = productName,
+                                ProductCode = cols[3],
+                                Category = category,
+                                Price = price,
+                                TownId = townId,
+                                RetailChainId = chainId,
+                                ImportDate = DateTime.UtcNow
+                            };
+
+                            newProducts.Add(product);
+
+                            if (newProducts.Count >= 1000)
+                            {
+                                await _db.ImportedProducts.AddRangeAsync(newProducts);
+                                await _db.SaveChangesAsync();
+                                newProducts.Clear();
                             }
                         }
-
-                        var town = _db.Towns.FirstOrDefault(t => t.Name == townName);
-                        if (town == null)
-                        {
-                            town = new Town { Name = townName };
-                            _db.Towns.Add(town);
-                            _db.SaveChanges();
-                        }
-
-                        string chainName = cols[1];
-                        var chain = _db.RetailChains.FirstOrDefault(c => c.Name == chainName);
-                        if (chain == null)
-                        {
-                            chain = new RetailChain { Name = chainName };
-                            _db.RetailChains.Add(chain);
-                            _db.SaveChanges();
-                        }
-
-                        var product = new ImportedProduct
-                        {
-                            Name = productName,
-                            Category = category,
-                            Price = price,
-                            TownId = town.Id,
-                            RetailChainId = chain.Id,
-                            ImportDate = DateTime.UtcNow
-                        };
-
-                        _db.ImportedProducts.Add(product);
-                        _db.SaveChanges();
                     }
                 }
+
+                if (newProducts.Any())
+                {
+                    await _db.ImportedProducts.AddRangeAsync(newProducts);
+                    await _db.SaveChangesAsync();
+                }
+            }
+            finally
+            {
+                _db.ChangeTracker.AutoDetectChangesEnabled = true;
             }
 
             ViewBag.Message = "Upload successful!";
