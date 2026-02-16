@@ -1,0 +1,194 @@
+@using SeniorProject.Models
+@{
+    ViewData["Title"] = "Cheap Basket";
+    var towns = ViewBag.Towns as List<Town>;
+}
+
+<div class="container mt-4">
+    <h2 class="mb-4">Shopping Basket Comparison</h2>
+
+    <!-- 1. City Selection -->
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Select City:</label>
+            <select id="townSelect" class="form-select">
+                <option value="">-- Choose City --</option>
+                @if (towns != null)
+                {
+                    foreach (var town in towns)
+                    {
+                        <option value="@town.Id">@town.Name</option>
+                    }
+                }
+            </select>
+        </div>
+    </div>
+
+    <!-- 2. Search & Basket -->
+    <div class="row">
+        <!-- Search Area -->
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h5>Search Products</h5>
+                <div class="input-group mb-3">
+                    <input type="text" id="productSearch" class="form-control" placeholder="e.g. Vereia Milk">
+                    <button class="btn btn-primary" type="button" id="btnAddManually">Add</button>
+                </div>
+                <!-- Autocomplete suggestions container -->
+                <div id="suggestions" class="list-group" style="position:absolute; z-index:1000; width:90%; display:none;"></div>
+                <small class="text-muted">Type to search. Click suggestion to add.</small>
+            </div>
+        </div>
+
+        <!-- Basket List -->
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h5>Your Basket <span id="basketCount" class="badge bg-secondary">0</span></h5>
+                <ul id="basketList" class="list-group mb-3">
+                    <!-- Items go here -->
+                </ul>
+                <button id="btnCompare" class="btn btn-success w-100" disabled>Compare Prices</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Results Area -->
+    <div id="resultsArea" class="mt-5" style="display:none;">
+        <h3>Top 3 Cheapest Stores</h3>
+        <div id="resultsContent"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const basket = [];
+
+        $(document).ready(function () {
+             // 1. Autocomplete Search
+            $("#productSearch").on("input", function () {
+                var term = $(this).val();
+                if (term.length < 2) {
+                    $("#suggestions").hide();
+                    return;
+                }
+
+                $.get("/Basket/SearchProducts", { term: term }, function (data) {
+                    var html = "";
+                    data.forEach(function (item) {
+                        html += `<a href="#" class="list-group-item list-group-item-action suggestion-item" data-name="${item}">${item}</a>`;
+                    });
+                    
+                    if(data.length > 0){
+                         $("#suggestions").html(html).show();
+                    } else {
+                         $("#suggestions").hide();
+                    }
+                });
+            });
+
+            // 2. Add Item to Basket
+            $(document).on("click", ".suggestion-item", function (e) {
+                e.preventDefault();
+                var name = $(this).data("name");
+                addToBasket(name);
+                $("#suggestions").hide();
+                $("#productSearch").val("");
+            });
+
+             $("#btnAddManually").click(function() {
+                var name = $("#productSearch").val();
+                if(name) {
+                     addToBasket(name);
+                     $("#productSearch").val("");
+                     $("#suggestions").hide();
+                }
+            });
+
+            // 3. Compare Basket
+            $("#btnCompare").click(function () {
+                var townId = $("#townSelect").val();
+                if (!townId) {
+                    alert("Please select a city first.");
+                    return;
+                }
+
+                // Show loading
+                $("#resultsArea").show();
+                $("#resultsContent").html('<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>');
+
+                $.ajax({
+                    url: "/Basket/CompareBasket",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({ items: basket, townId: parseInt(townId) }),
+                    success: function (data) {
+                        displayResults(data);
+                    },
+                    error: function (xhr) {
+                        var msg = "Error calculating prices.";
+                        if(xhr.responseJSON && xhr.responseJSON.error) {
+                            msg += " Details: " + xhr.responseJSON.error;
+                        }
+                        $("#resultsContent").html('<p class="text-danger">' + msg + '</p>');
+                    }
+                });
+            });
+        });
+
+        function addToBasket(name) {
+            basket.push(name);
+            renderBasket();
+        }
+
+        function removeFromBasket(index) {
+            basket.splice(index, 1);
+            renderBasket();
+        }
+
+        function renderBasket() {
+            var html = "";
+            basket.forEach(function (item, index) {
+                html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                            ${item}
+                            <button class="btn btn-sm btn-danger" onclick="removeFromBasket(${index})">X</button>
+                        </li>`;
+            });
+            $("#basketList").html(html);
+            $("#basketCount").text(basket.length);
+            
+            $("#btnCompare").prop("disabled", basket.length === 0);
+        }
+
+        function displayResults(data) {
+            if (!data || data.length === 0) {
+                $("#resultsContent").html("<p>No matching stores found in this city.</p>");
+                return;
+            }
+
+            var html = '<div class="row">';
+            data.forEach(function (store) {
+                var productsHtml = "";
+                store.products.forEach(function(p) {
+                     productsHtml += `<div><small>${p.productName}</small> : <strong>${p.price.toFixed(2)}</strong></div>`;
+                });
+
+                html += `
+                <div class="col-md-4">
+                    <div class="card border-success mb-3">
+                        <div class="card-header bg-success text-white fw-bold d-flex justify-content-between">
+                            <span>${store.retailChainName}</span>
+                            <span>${store.totalPrice.toFixed(2)} BGN</span>
+                        </div>
+                        <div class="card-body">
+                             ${productsHtml}
+                            <hr>
+                            <small class="text-muted">Matched ${store.products.length} of ${basket.length} items</small>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            $("#resultsContent").html(html);
+        }
+    </script>
+}

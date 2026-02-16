@@ -12,6 +12,7 @@ using SeniorProject.Services;
 
     builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
     builder.Services.AddHostedService<FileProcessingWorker>();
+    builder.Services.AddScoped<BasketService>();
 
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
