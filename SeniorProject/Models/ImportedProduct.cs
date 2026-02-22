@@ -12,6 +12,8 @@ namespace SeniorProject.Models
 
         public string ProductCode { get; set; }
 
+        public string CleanName { get; set; }
+
         public string Category { get; set; }
 
         [Column(TypeName = "decimal(18, 2)")]

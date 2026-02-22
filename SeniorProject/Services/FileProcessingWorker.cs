@@ -17,8 +17,8 @@ namespace SeniorProject.Services
     public class FileProcessingWorker : BackgroundService
     {
         private readonly ILogger<FileProcessingWorker> _logger;
-        private readonly IBackgroundTaskQueue _taskQueue;
-        private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly IBackgroundTaskQueue _taskQueue; 
+        private readonly IServiceScopeFactory _serviceScopeFactory; 
 
         public FileProcessingWorker(
             IBackgroundTaskQueue taskQueue,
@@ -32,11 +32,11 @@ namespace SeniorProject.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("File Processing Worker is starting.");
+            _logger.LogInformation("File Processing Worker is starting."); 
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                var filePath = await _taskQueue.DequeueAsync(stoppingToken);
+                var filePath = await _taskQueue.DequeueAsync(stoppingToken); 
 
                 try
                 {
@@ -44,7 +44,7 @@ namespace SeniorProject.Services
                     {
                         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                         await ProcessFileAsync(filePath, db);
-                    }
+                    } 
                 }
                 catch (Exception ex)
                 {
@@ -60,10 +60,10 @@ namespace SeniorProject.Services
              string uploadFolder = Path.GetDirectoryName(zipPath);
              string extractPath = Path.Combine(uploadFolder, "extracted");
 
-            if (Directory.Exists(extractPath))
-            {
-                Directory.Delete(extractPath, true);
-            }
+            //if (Directory.Exists(extractPath))
+            //{
+            //    Directory.Delete(extractPath, true);
+            //}
 
             System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, extractPath);
 
@@ -74,8 +74,8 @@ namespace SeniorProject.Services
             try
             {
                 // clear all old products to ensure fresh data for the day
-                await _db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [ImportedProducts]");
-                // Note: If TRUNCATE permission is an issue, use: await _db.ImportedProducts.ExecuteDeleteAsync();
+                //await _db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [ImportedProducts]");
+               
 
                 var categoryMap = new Dictionary<string, string>
                 {
@@ -91,10 +91,11 @@ namespace SeniorProject.Services
                     { "10135", "Varna" }
                 };
 
-                var existingTowns = await _db.Towns.ToDictionaryAsync(t => t.Name, t => t.Id);
+                var existingTowns = await _db.Towns.ToDictionaryAsync(t => t.Name, t => t.Id); 
                 var existingChains = await _db.RetailChains.ToDictionaryAsync(c => c.Name, c => c.Id);
                 var newProducts = new List<ImportedProduct>();
 
+                var importTimestamp = DateTime.UtcNow; 
                 foreach (var file in Directory.GetFiles(extractPath, "*.csv", SearchOption.AllDirectories))
                 {
                     using (var reader = new StreamReader(file, encoding))
@@ -111,7 +112,17 @@ namespace SeniorProject.Services
                             if (cols.Length < 7) continue;
 
                             string townCode = cols[0].Trim('"');
-                            string productName = cols[2];
+                            string productName = cols[2].TrimStart('=', ',', '+', '.', '*', '-', ' ').Trim();
+                            
+                            string cleanName = productName
+                                .Replace(".", " ")
+                                .Replace(",", " ")
+                                .Replace("-", " ")
+                                .Replace("/", " ")
+                                .Replace("*", " ")
+                                .Replace("=", " ")
+                                .ToLowerInvariant();
+
                             string categoryCode = cols[4];
                             string priceText = cols[5];
                             string promoText = cols[6].Trim('"');
@@ -119,7 +130,7 @@ namespace SeniorProject.Services
                             string townName = townCode;
                             if (townMap.ContainsKey(townCode))
                             {
-                                townName = townMap[townCode];
+                                townName = townMap[townCode]; 
                             }
 
                             string category = categoryCode;
@@ -164,11 +175,12 @@ namespace SeniorProject.Services
                             {
                                 Name = productName,
                                 ProductCode = cols[3],
+                                CleanName = cleanName,
                                 Category = category,
                                 Price = price,
                                 TownId = townId,
                                 RetailChainId = chainId,
-                                ImportDate = DateTime.UtcNow
+                                ImportDate = importTimestamp
                             };
 
                             newProducts.Add(product);
@@ -182,7 +194,7 @@ namespace SeniorProject.Services
                         }
                     }
                 }
-
+                
                 if (newProducts.Any())
                 {
                     await _db.ImportedProducts.AddRangeAsync(newProducts);
