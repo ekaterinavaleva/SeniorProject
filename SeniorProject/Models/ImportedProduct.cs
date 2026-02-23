@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace SeniorProject.Models
 {
+    [Index(nameof(NameHash))]
     public class ImportedProduct
     {
         public int Id { get; set; }
@@ -13,6 +15,8 @@ namespace SeniorProject.Models
         public string ProductCode { get; set; }
 
         public string CleanName { get; set; }
+
+        public int NameHash { get; set; }
 
         public string Category { get; set; }
 

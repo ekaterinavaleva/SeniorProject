@@ -26,7 +26,7 @@ namespace SeniorProject.Services
                 .ToListAsync();
         }
 
-        public async Task<List<BasketComparisonResult>> CompareBasketAsync(List<string> productNames, int townId)
+        public async Task<List<BasketComparisonResult>> CompareBasketAsync(List<BasketProductDetail> items, int townId)
         {
             // only set timeout for real databases, skips for unit tests
             if (_context.Database.IsRelational())
@@ -42,24 +42,76 @@ namespace SeniorProject.Services
                 .Distinct()
                 .ToListAsync();
 
+            var latestDate = await _context.ImportedProducts
+                .Where(p => p.TownId == townId)
+                .MaxAsync(p => (DateTime?)p.ImportDate) ?? DateTime.UtcNow;
+
+            var batchStartDate = latestDate.AddMinutes(-15);
+
+            
+            var basketDictionary = new Dictionary<int, BasketProductDetail>();
+            foreach (var item in items)
+            {
+                string productName = item.ProductName.TrimStart('=', ',', '+', '.', '*', '-', ' ').Trim();
+                string cleanName = productName
+                    .Replace(".", " ")
+                    .Replace(",", " ")
+                    .Replace("-", " ")
+                    .Replace("/", " ")
+                    .Replace("*", " ")
+                    .Replace("=", " ")
+                    .ToLowerInvariant();
+                
+                int searchHash = cleanName.GetHashCode();
+                basketDictionary[searchHash] = item;
+            }
+
+            var searchHashes = basketDictionary.Keys.ToList();
+
+            var allMatchedProducts = await _context.ImportedProducts
+                .AsNoTracking()
+                .Where(p => p.TownId == townId && 
+                            p.ImportDate >= batchStartDate && 
+                            p.ImportDate <= latestDate &&
+                            searchHashes.Contains(p.NameHash))
+                .ToListAsync();
+
             foreach (var chain in chainsInCity)
             {
                 var chainResult = new BasketComparisonResult { RetailChainName = chain.Name, Products = new List<BasketProductDetail>() };
+                var productsForThisChain = allMatchedProducts.Where(p => p.RetailChainId == chain.Id).ToList();
 
-                var latestDate = await _context.ImportedProducts
-                    .Where(p => p.RetailChainId == chain.Id && p.TownId == townId)
-                    .MaxAsync(p => p.ImportDate);
-
-                var batchStartDate = latestDate.AddMinutes(-15);
-
+                
+                /*
                 var storeProducts = await _context.ImportedProducts
                     .AsNoTracking()
                     .Where(p => p.RetailChainId == chain.Id && p.TownId == townId && p.ImportDate >= batchStartDate && p.ImportDate <= latestDate)
                     .ToListAsync();
+                */
 
-                foreach (var itemName in productNames)
+                foreach (var hash in searchHashes)
                 {
-                    var cleanSearch = itemName.Replace(".", " ").Replace(",", " ").Replace("-", " ").Replace("/", " ").Replace("*", " ").Replace("=", " ").Replace("+", " ").ToLowerInvariant();
+                    var originalBasketItem = basketDictionary[hash];
+                    
+                    var bestProduct = productsForThisChain
+                        .Where(p => p.NameHash == hash)
+                        .OrderBy(p => p.Price)
+                        .FirstOrDefault();
+
+                    if (bestProduct != null)
+                    {
+                        chainResult.Products.Add(new BasketProductDetail
+                        {
+                            ProductName = bestProduct.Name,
+                            Price = bestProduct.PromoPrice ?? bestProduct.Price,
+                            IsPromo = bestProduct.PromoPrice.HasValue
+                        });
+                        chainResult.TotalPrice += bestProduct.PromoPrice ?? bestProduct.Price;
+                    }
+
+                    
+                    /*
+                    var cleanSearch = originalBasketItem.ProductName.Replace(".", " ").Replace(",", " ").Replace("-", " ").Replace("/", " ").Replace("*", " ").Replace("=", " ").Replace("+", " ").ToLowerInvariant();
                     var searchWords = cleanSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     
                     int threshold = (int)Math.Ceiling(searchWords.Length * 0.75);
@@ -98,7 +150,9 @@ namespace SeniorProject.Services
                         });
                         chainResult.TotalPrice += best.PromoPrice ?? best.Price;
                     }
+                    */
                 }
+                
                 results.Add(chainResult);
             }
 

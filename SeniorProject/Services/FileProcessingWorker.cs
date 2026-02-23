@@ -60,12 +60,12 @@ namespace SeniorProject.Services
              string uploadFolder = Path.GetDirectoryName(zipPath);
              string extractPath = Path.Combine(uploadFolder, "extracted");
 
-            //if (Directory.Exists(extractPath))
-            //{
-            //    Directory.Delete(extractPath, true);
-            //}
+            if (Directory.Exists(extractPath))
+            {
+                Directory.Delete(extractPath, true);
+            }
 
-            System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, extractPath);
+            System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, extractPath, true);
 
             var encoding = System.Text.Encoding.UTF8;
             _db.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -171,11 +171,14 @@ namespace SeniorProject.Services
                             }
                             int chainId = existingChains[chainName];
 
+                            int nameHash = cleanName.GetHashCode();
+
                             var product = new ImportedProduct
                             {
                                 Name = productName,
                                 ProductCode = cols[3],
                                 CleanName = cleanName,
+                                NameHash = nameHash,
                                 Category = category,
                                 Price = price,
                                 TownId = townId,
