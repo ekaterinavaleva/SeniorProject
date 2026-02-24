@@ -16,10 +16,16 @@ namespace SeniorProject.Services
         }
 
         //dropdown menu for user to enter data
-        public async Task<List<string>> SearchAsync(string query)
+        public async Task<List<string>> SearchAsync(string query, int? townId)
         {
-            return await _context.ImportedProducts
-                .Where(p => p.Name.Contains(query))
+            var sqlQuery = _context.ImportedProducts.Where(p => p.Name.Contains(query));
+            
+            if (townId.HasValue && townId.Value > 0)
+            {
+                sqlQuery = sqlQuery.Where(p => p.TownId == townId.Value); 
+            }
+
+            return await sqlQuery
                 .Select(p => p.Name)
                 .Distinct() 
                 .Take(20) 
@@ -100,13 +106,17 @@ namespace SeniorProject.Services
 
                     if (bestProduct != null)
                     {
+                        decimal finalPrice = bestProduct.PromoPrice ?? bestProduct.Price;
+                        decimal totalItemPrice = finalPrice * originalBasketItem.Quantity;
+
                         chainResult.Products.Add(new BasketProductDetail
                         {
                             ProductName = bestProduct.Name,
-                            Price = bestProduct.PromoPrice ?? bestProduct.Price,
-                            IsPromo = bestProduct.PromoPrice.HasValue
+                            Price = totalItemPrice,
+                            IsPromo = bestProduct.PromoPrice.HasValue,
+                            Quantity = originalBasketItem.Quantity
                         });
-                        chainResult.TotalPrice += bestProduct.PromoPrice ?? bestProduct.Price;
+                        chainResult.TotalPrice += totalItemPrice;
                     }
 
                     
@@ -141,14 +151,14 @@ namespace SeniorProject.Services
                     if (candidates.Any())
                     {
                         var best = candidates.First().Product;
-                        
+
                         chainResult.Products.Add(new BasketProductDetail
                         {
                             ProductName = best.Name,
-                            Price = best.PromoPrice ?? best.Price,
-                            IsPromo = best.PromoPrice.HasValue
+                            Price = totalItemPriceOld,
+                            IsPromo = best.PromoPrice.HasValue,
                         });
-                        chainResult.TotalPrice += best.PromoPrice ?? best.Price;
+                        chainResult.TotalPrice += totalItemPriceOld;
                     }
                     */
                 }

@@ -7,7 +7,7 @@
 <div class="container mt-4">
     <h2 class="mb-4">Shopping Basket Comparison</h2>
 
-    <!-- 1. City Selection -->
+    <!-- city selection -->
     <div class="row mb-3">
         <div class="col-md-4">
             <label class="form-label">Select City:</label>
@@ -24,35 +24,37 @@
         </div>
     </div>
 
-    <!-- 2. Search & Basket -->
+    <!-- search & basket -->
     <div class="row">
-        <!-- Search Area -->
+        <!-- search area -->
         <div class="col-md-6">
             <div class="card p-3">
                 <h5>Search Products</h5>
-                <div class="input-group mb-3">
-                    <input type="text" id="productSearch" class="form-control" placeholder="e.g. Vereia Milk">
-                    <button class="btn btn-primary" type="button" id="btnAddManually">Add</button>
+                <div class="position-relative">
+                    <div class="input-group mb-1">
+                        <input type="text" id="productSearch" class="form-control" placeholder="e.g. Vereia Milk" autocomplete="off">
+                        <button class="btn btn-primary" type="button" id="btnAddManually">Add</button>
+                    </div>
+                    <!-- Autocomplete suggestions container -->
+                    <div id="suggestions" class="list-group shadow-sm border" style="position:absolute; top: 100%; left: 0; width: 100%; z-index: 1050; display:none; max-height: 300px; overflow-y: auto;"></div>
                 </div>
-                <!-- Autocomplete suggestions container -->
-                <div id="suggestions" class="list-group" style="position:absolute; z-index:1000; width:90%; display:none;"></div>
-                <small class="text-muted">Type to search. Click suggestion to add.</small>
+                <small class="text-muted d-block mt-1">Type to search. Click suggestion to add.</small>
             </div>
         </div>
 
-        <!-- Basket List -->
+        <!-- basket list -->
         <div class="col-md-6">
             <div class="card p-3">
                 <h5>Your Basket <span id="basketCount" class="badge bg-secondary">0</span></h5>
                 <ul id="basketList" class="list-group mb-3">
-                    <!-- Items go here -->
+                    <!-- items go here -->
                 </ul>
                 <button id="btnCompare" class="btn btn-success w-100" disabled>Compare Prices</button>
             </div>
         </div>
     </div>
 
-    <!-- 3. Results Area -->
+    <!-- results area -->
     <div id="resultsArea" class="mt-5" style="display:none;">
         <h3>Top 3 Cheapest Stores</h3>
         <div id="resultsContent"></div>
@@ -64,15 +66,17 @@
         const basket = [];
 
         $(document).ready(function () {
-             // 1. Autocomplete Search
+            // autocomplete search
             $("#productSearch").on("input", function () {
                 var term = $(this).val();
+                var townId = $("#townSelect").val();
+
                 if (term.length < 2) {
                     $("#suggestions").hide();
                     return;
                 }
 
-                $.get("/Basket/SearchProducts", { term: term }, function (data) {
+                $.get("/Basket/SearchProducts", { term: term, townId: townId }, function (data) {
                     var html = "";
                     data.forEach(function (item) {
                         html += `<a href="#" class="list-group-item list-group-item-action suggestion-item" data-name="${item}">${item}</a>`;
@@ -86,7 +90,7 @@
                 });
             });
 
-            // 2. Add Item to Basket
+            // add item to basket
             $(document).on("click", ".suggestion-item", function (e) {
                 e.preventDefault();
                 var name = $(this).data("name");
@@ -104,7 +108,7 @@
                 }
             });
 
-            // 3. Compare Basket
+            // compare basket
             $("#btnCompare").click(function () {
                 var townId = $("#townSelect").val();
                 if (!townId) {
@@ -112,7 +116,7 @@
                     return;
                 }
 
-                // Show loading
+                // show loading
                 $("#resultsArea").show();
                 $("#resultsContent").html('<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>');
 
@@ -136,7 +140,12 @@
         });
 
         function addToBasket(name) {
-            basket.push(name);
+            const existingItem = basket.find(i => i.productName === name);
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                basket.push({ productName: name, quantity: 1 });
+            }
             renderBasket();
         }
 
@@ -145,16 +154,37 @@
             renderBasket();
         }
 
+        function updateQty(index, newVal) {
+            basket[index].quantity = parseInt(newVal) || 1;
+            renderBasketCount();
+        }
+
+        function renderBasketCount() {
+            let totalItems = 0;
+            basket.forEach(function (item) {
+                totalItems += item.quantity;
+            });
+            $("#basketCount").text(totalItems);
+        }
+
         function renderBasket() {
             var html = "";
+            let totalItems = 0;
+            
             basket.forEach(function (item, index) {
+                totalItems += item.quantity;
                 html += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                            ${item}
-                            <button class="btn btn-sm btn-danger" onclick="removeFromBasket(${index})">X</button>
+                            ${item.productName}
+                            <div class="d-flex align-items-center">
+                                <input type="number" class="form-control form-control-sm me-2" 
+                                       style="width: 60px;" value="${item.quantity}" min="1" 
+                                       onchange="updateQty(${index}, this.value)">
+                                <button class="btn btn-sm btn-danger" onclick="removeFromBasket(${index})">X</button>
+                            </div>
                         </li>`;
             });
             $("#basketList").html(html);
-            $("#basketCount").text(basket.length);
+            $("#basketCount").text(totalItems);
             
             $("#btnCompare").prop("disabled", basket.length === 0);
         }
@@ -169,7 +199,7 @@
             data.forEach(function (store) {
                 var productsHtml = "";
                 store.products.forEach(function(p) {
-                     productsHtml += `<div><small>${p.productName}</small> : <strong>${p.price.toFixed(2)}</strong></div>`;
+                     productsHtml += `<div><small>${p.productName} (x${p.quantity})</small> : <strong>${p.price.toFixed(2)}</strong></div>`;
                 });
 
                 html += `
@@ -177,12 +207,12 @@
                     <div class="card border-success mb-3">
                         <div class="card-header bg-success text-white fw-bold d-flex justify-content-between">
                             <span>${store.retailChainName}</span>
-                            <span>${store.totalPrice.toFixed(2)} BGN</span>
+                            <span>${store.totalPrice.toFixed(2)} EUR</span>
                         </div>
                         <div class="card-body">
                              ${productsHtml}
                             <hr>
-                            <small class="text-muted">Matched ${store.products.length} of ${basket.length} items</small>
+                            <small class="text-muted">Matched ${store.products.length} of ${basket.length} unique items</small>
                         </div>
                     </div>
                 </div>`;

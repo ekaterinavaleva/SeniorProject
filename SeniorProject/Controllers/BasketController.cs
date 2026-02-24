@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
 using SeniorProject.Services;
+using SeniorProject.Models;
 
 namespace SeniorProject.Controllers
 {
@@ -23,9 +24,9 @@ namespace SeniorProject.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> SearchProducts(string term)
+        public async Task<IActionResult> SearchProducts(string term, int? townId)
         {
-            var results = await _basketService.SearchAsync(term);
+            var results = await _basketService.SearchAsync(term, townId);
             return Json(results);
         }
 
@@ -46,12 +47,6 @@ namespace SeniorProject.Controllers
             {
                 return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace });
             }
-        }
-
-        public class CompareRequest
-        {
-            public List<string> Items { get; set; }
-            public int TownId { get; set; }
         }
 
         [HttpGet]
