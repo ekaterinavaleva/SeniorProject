@@ -137,6 +137,38 @@
                     }
                 });
             });
+
+            // save the basket
+            $(document).on('click', '.save-basket-btn', function() {
+                var storeName = $(this).data('store');
+                var totalPrice = parseFloat($(this).data('price'));
+                
+                // extract products as they were returned from the backend 
+                var storeProducts = $(this).data('products');
+
+                var requestData = {
+                    WinningSupermarket: storeName,
+                    TotalPrice: totalPrice,
+                    Items: storeProducts
+                };
+
+                $.ajax({
+                    url: '/Basket/SaveBasket',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(requestData),
+                    success: function (response) {
+                        alert(response.message);
+                    },
+                    error: function (xhr) {
+                        if (xhr.status === 401) {
+                            window.location.href = '/Identity/Account/Login';
+                        } else {
+                            alert('Failed to save basket. Please try again.');
+                        }
+                    }
+                });
+            });
         });
 
         function addToBasket(name) {
@@ -196,10 +228,16 @@
             }
 
             var html = '<div class="row">';
-            data.forEach(function (store) {
+            data.forEach(function (store, index) {
+                var isWinner = index === 0;
+                
+                var productsJson = JSON.stringify(store.products).replace(/"/g, '&quot;');
+                
+                var saveButton = isWinner ? `<div class="mt-2"><button class="btn btn-sm btn-outline-success save-basket-btn" data-store="${store.retailChainName}" data-price="${store.totalPrice}" data-products="${productsJson}">💾 Save Basket</button></div>` : '';
+                
                 var productsHtml = "";
                 store.products.forEach(function(p) {
-                     productsHtml += `<div><small>${p.productName} (x${p.quantity})</small> : <strong>${p.price.toFixed(2)}</strong></div>`;
+                     productsHtml += `<div><small>${p.productName} (x${p.quantity})</small> : <strong>€${p.price.toFixed(2)}</strong></div>`;
                 });
 
                 html += `
@@ -207,12 +245,13 @@
                     <div class="card border-success mb-3">
                         <div class="card-header bg-success text-white fw-bold d-flex justify-content-between">
                             <span>${store.retailChainName}</span>
-                            <span>${store.totalPrice.toFixed(2)} EUR</span>
+                            <span>€${store.totalPrice.toFixed(2)} EUR</span>
                         </div>
                         <div class="card-body">
                              ${productsHtml}
                             <hr>
                             <small class="text-muted">Matched ${store.products.length} of ${basket.length} unique items</small>
+                            ${saveButton}
                         </div>
                     </div>
                 </div>`;

@@ -20,4 +20,11 @@ namespace SeniorProject.Models
         public List<BasketProductDetail> Items { get; set; }
         public int TownId { get; set; }
     }
+
+    public class SaveBasketRequest
+    {
+        public string WinningSupermarket { get; set; }
+        public decimal TotalPrice { get; set; }
+        public List<BasketProductDetail> Items { get; set; }
+    }
 }

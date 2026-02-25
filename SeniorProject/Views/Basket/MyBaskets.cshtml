@@ -1,0 +1,47 @@
+@model List<SeniorProject.Models.SavedBasket>
+@{
+    ViewData["Title"] = "My Saved Baskets";
+}
+
+<div class="container mt-4">
+    <h2 class="mb-4">My Saved Baskets</h2>
+
+    @if (Model == null || !Model.Any())
+    {
+        <div class="alert alert-info">
+            You haven't saved any baskets yet! Go to the <a href="/Basket">Compare</a> page to find the best deals and save your receipts.
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var basket in Model)
+            {
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm h-100 border-primary">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">@basket.WinningSupermarket</h5>
+                            <small>@basket.SavedDate.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</small>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="text-success mb-3">Total Saved Price: @basket.TotalPrice.ToString("C2")</h6>
+                            
+                            <ul class="list-group list-group-flush">
+                                @foreach (var item in basket.Items)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <div>
+                                            <span class="badge bg-secondary rounded-pill me-2">@item.Quantity</span>
+                                            @item.ProductName
+                                        </div>
+                                        <span>@item.UnitPrice.ToString("C2") ea</span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
