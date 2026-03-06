@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
 using SeniorProject.Models;
+using SeniorProject.Extensions;
 
 namespace SeniorProject.Services
 {
@@ -95,6 +96,17 @@ namespace SeniorProject.Services
                 var existingChains = await _db.RetailChains.ToDictionaryAsync(c => c.Name, c => c.Id);
                 var newProducts = new List<ImportedProduct>();
 
+                // Load all existing hashes and clean names into a dictionary so we don't have to query the database 10,000 times
+                // We use GroupBy to avoid a Duplicate Key crash just in case historical bad data is present
+                var existingWordsCache = await _db.ImportedProducts
+                    .Select(p => new { p.NameHash, p.CleanName })
+                    .Distinct()
+                    .GroupBy(p => p.NameHash)
+                    .Select(g => g.First())
+                    .ToDictionaryAsync(p => p.NameHash, p => p.CleanName);
+                
+                var existingHashes = new HashSet<int>(existingWordsCache.Keys);
+
                 var importTimestamp = DateTime.UtcNow; 
                 foreach (var file in Directory.GetFiles(extractPath, "*.csv", SearchOption.AllDirectories))
                 {
@@ -114,14 +126,7 @@ namespace SeniorProject.Services
                             string townCode = cols[0].Trim('"');
                             string productName = cols[2].TrimStart('=', ',', '+', '.', '*', '-', ' ').Trim();
                             
-                            string cleanName = productName
-                                .Replace(".", " ")
-                                .Replace(",", " ")
-                                .Replace("-", " ")
-                                .Replace("/", " ")
-                                .Replace("*", " ")
-                                .Replace("=", " ")
-                                .ToLowerInvariant();
+                            string cleanName = productName.ToCleanSortedString();
 
                             string categoryCode = cols[4];
                             string priceText = cols[5];
@@ -171,7 +176,14 @@ namespace SeniorProject.Services
                             }
                             int chainId = existingChains[chainName];
 
-                            int nameHash = cleanName.GetHashCode();
+                            int generatedHash = cleanName.GetStableHashCode();
+                            int nameHash = generatedHash;
+
+                            if (!existingHashes.Contains(generatedHash))
+                            {
+                                existingHashes.Add(generatedHash);
+                                existingWordsCache[generatedHash] = cleanName;
+                            }
 
                             var product = new ImportedProduct
                             {
