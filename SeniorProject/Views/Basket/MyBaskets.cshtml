@@ -24,7 +24,12 @@
                             <small>@basket.SavedDate.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</small>
                         </div>
                         <div class="card-body">
-                            <h6 class="text-success mb-3">Total Saved Price: @basket.TotalPrice.ToString("C2")</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="text-success mb-0">Total Saved Price: @basket.TotalPrice.ToString("C2")</h6>
+                                <button class="btn btn-outline-primary btn-sm" onclick="viewPriceTrend(@basket.Id, '@basket.WinningSupermarket')">
+                                    <i class="bi bi-graph-up"></i> View Price Trend
+                                </button>
+                            </div>
                             
                             <ul class="list-group list-group-flush">
                                 @foreach (var item in basket.Items)
@@ -34,7 +39,7 @@
                                             <span class="badge bg-secondary rounded-pill me-2">@item.Quantity</span>
                                             @item.ProductName
                                         </div>
-                                        <span>@item.UnitPrice.ToString("C2") ea</span>
+                                        <span>@item.UnitPrice.ToString("C2")</span>
                                     </li>
                                 }
                             </ul>
@@ -45,3 +50,100 @@
         </div>
     }
 </div>
+
+<div class="modal fade" id="priceTrendModal" tabindex="-1" aria-labelledby="priceTrendModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="priceTrendModalLabel">Price Comparison</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <canvas id="priceTrendChart" style="max-height: 400px;"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let priceChart = null;
+
+        function viewPriceTrend(basketId, storeName) {
+            const modal = new bootstrap.Modal(document.getElementById('priceTrendModal'));
+            modal.show();
+
+            fetch('/Basket/GetBasketPriceComparison?basketId=' + basketId)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    const ctx = document.getElementById('priceTrendChart').getContext('2d');
+                    
+                    if (priceChart) {
+                        priceChart.destroy();
+                    }
+
+                    priceChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['Price on ' + data.savedDate, 'Current Price'],
+                            datasets: [
+                                {
+                                    label: 'Total Basket Price at ' + storeName,
+                                    data: [data.totalSavedPrice, data.totalCurrentPrice],
+                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderWidth: 2,
+                                    pointBackgroundColor: ['rgba(54, 162, 235, 1)', 'rgba(255, 99, 132, 1)'],
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2,
+                                    pointRadius: 6,
+                                    pointHoverRadius: 8,
+                                    fill: true,
+                                    tension: 0.1
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    beginAtZero: false, 
+                                    title: {
+                                        display: true,
+                                        text: 'Total Price (€)'
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    onClick: function(e) {
+                                        e.stopPropagation(); 
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.dataset.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            if (context.parsed.y !== null) {
+                                                label += '€' + context.parsed.y.toFixed(2);
+                                            }
+                                            return label;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(function(err) {
+                    console.error('Error fetching price trend:', err);
+                    alert("Could not load price comparison.");
+                });
+        }
+    </script>
+}
