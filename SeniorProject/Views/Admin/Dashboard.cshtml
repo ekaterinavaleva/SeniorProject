@@ -1,0 +1,48 @@
+﻿@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<div class="container mt-4">
+    <h2>System Statistics</h2>
+
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white text-center p-3">
+                <h5>Total Users</h5>
+                <h2>@ViewBag.TotalUsers</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white text-center p-3">
+                <h5>Saved Baskets</h5>
+                <h2>@ViewBag.TotalBaskets</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white text-center p-3">
+                <h5>Products in Database</h5>
+                <h2>@ViewBag.TotalProducts</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white text-center p-3">
+                <h5>Last Upload</h5>
+                <h4>@ViewBag.LastUpload</h4>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h5>Most Saved Store</h5>
+                <p class="lead">@ViewBag.MostPopularStore</p>
+                <p>Saved in <strong>@ViewBag.MostPopularStoreCount</strong> baskets</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a asp-action="Index" class="btn btn-secondary">Back to User Management</a>
+    </div>
+</div>
