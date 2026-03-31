@@ -15,7 +15,7 @@ using SeniorProject.Services;
     builder.Services.AddScoped<BasketService>();
 
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions => sqlOptions.CommandTimeout(600)));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
         builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = false)
@@ -24,7 +24,16 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+
+var supportedCultures = new[] { "en-IE" };
+var localizationOptions = new RequestLocalizationOptions()
+    .SetDefaultCulture(supportedCultures[0])
+    .AddSupportedCultures(supportedCultures)
+    .AddSupportedUICultures(supportedCultures);
+app.UseRequestLocalization(localizationOptions);
+
 await IdentitySeeder.SeedAsync(app.Services);
+await ProductGroupSeeder.SeedAsync(app.Services);
     // Configure the HTTP request pipeline.
     if (app.Environment.IsDevelopment())
 {
