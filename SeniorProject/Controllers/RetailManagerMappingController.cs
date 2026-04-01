@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
 using SeniorProject.Models;
@@ -8,48 +7,119 @@ namespace SeniorProject.Controllers
 {
     public class RetailManagerMappingController(ApplicationDbContext db) : Controller
     {
-        public async Task<IActionResult> Index(int? groupId, string? q)
+        // cache latest date so it doesn't requery on every page load
+        private static DateTime? _cachedLatestDate;
+
+        public async Task<IActionResult> Index(int? groupId, string? q, int? townId)
         {
-            // get the Groups for the dropdown (Bread, Milk, etc.)
-            ViewBag.Groups = await db.ProductGroups.OrderBy(g => g.Name).ToListAsync();
+            // load groups with their current mapped product count
+            ViewBag.Groups = await db.ProductGroups
+                .AsNoTracking()
+                .Select(g => new
+                {
+                    g.Id,
+                    g.Name,
+                    Count = db.ProductGroupItems.Count(i => i.ProductGroupId == g.Id)
+                })
+                .OrderBy(g => g.Name)
+                .ToListAsync();
+
+            // load towns for the filter dropdown
+            ViewBag.Towns = await db.Towns.AsNoTracking().OrderBy(t => t.Name).ToListAsync();
+
+            // preserve filter state across requests
             ViewBag.GroupId = groupId;
             ViewBag.Query = q;
+            ViewBag.TownId = townId;
 
-            var productNames = new List<string>();
+            var products = new List<MappedProductViewModel>();
 
-            // only scan files if the user has selected a group
             if (groupId != null)
             {
-                var path = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "extracted");
-                if (Directory.Exists(path))
+                // use cached latest date to avoid scanning the full table every time
+                _cachedLatestDate ??= await db.ImportedProducts
+                    .MaxAsync(p => (DateTime?)p.ImportDate);
+
+                var query = db.ImportedProducts
+                    .AsNoTracking()
+                    .Where(p => p.ImportDate == _cachedLatestDate);
+
+                if (townId.HasValue)
+                    query = query.Where(p => p.TownId == townId.Value);
+
+                if (!string.IsNullOrEmpty(q))
+                    query = query.Where(p => p.Name.Contains(q));
+
+                // distinct products by hash, max 200 to keep the page fast
+                var distinctProducts = await query
+                    .Select(p => new { p.NameHash, p.Name })
+                    .Distinct()
+                    .OrderBy(p => p.Name)
+                    .Take(200)
+                    .ToListAsync();
+
+                // load existing mappings for the selected group
+                var mappedItems = await db.ProductGroupItems
+                    .Where(i => i.ProductGroupId == groupId.Value)
+                    .ToListAsync();
+
+                foreach (var product in distinctProducts)
                 {
-                    foreach (var file in Directory.GetFiles(path, "*.csv",SearchOption.AllDirectories))
+                    var map = mappedItems.FirstOrDefault(m => m.RawProductId == product.NameHash);
+                    products.Add(new MappedProductViewModel
                     {
-                        using var reader = new StreamReader(file);
-                        reader.ReadLine(); // skip header
-
-                        while (!reader.EndOfStream)
-                        {
-                            var line = reader.ReadLine();
-                            if (string.IsNullOrWhiteSpace(line)) continue;
-
-                            var cols = line.Split(',');
-                            if (cols.Length > 2)
-                            {
-                                // column index 2 is the product name in the files
-                                string name = cols[2].Replace("\"", "").Trim();
-
-                                // directly add to list without filtering
-                                productNames.Add(name);
-                            }
-                        }
-                    }
+                        NameHash = product.NameHash,
+                        Name = product.Name,
+                        MappingId = map?.Id
+                    });
                 }
             }
 
-            return View(productNames);
+            return View(products);
         }
 
+        [HttpPost]
+        public async Task<IActionResult> AddToGroup(int nameHash, string productName, int groupId, string? q, int? townId)
+        {
+            // avoid duplicate mappings
+            var exists = await db.ProductGroupItems
+                .AnyAsync(m => m.RawProductId == nameHash && m.ProductGroupId == groupId);
 
+            if (!exists)
+            {
+                // store the namehash in rawproductid as the matching key
+                db.ProductGroupItems.Add(new ProductGroupItem
+                {
+                    ProductGroupId = groupId,
+                    RawProductId = nameHash,
+                    MappedName = productName
+                });
+                await db.SaveChangesAsync();
+            }
+
+            return RedirectToAction(nameof(Index), new { groupId, q, townId });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> RemoveFromGroup(int mappingId, int groupId, string? q, int? townId)
+        {
+            var item = await db.ProductGroupItems.FindAsync(mappingId);
+
+            if (item != null)
+            {
+                db.ProductGroupItems.Remove(item);
+                await db.SaveChangesAsync();
+            }
+
+            return RedirectToAction(nameof(Index), new { groupId, q, townId });
+        }
+    }
+
+    public class MappedProductViewModel
+    {
+        public int NameHash { get; set; }
+        public string Name { get; set; }
+        public int? MappingId { get; set; }
+        public bool IsMapped => MappingId.HasValue;
     }
 }
