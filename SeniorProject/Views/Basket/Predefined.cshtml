@@ -1,0 +1,252 @@
+@using SeniorProject.Models
+@{
+    ViewData["Title"] = "Small Basket Comparison";
+    var towns = ViewBag.Towns as List<Town>;
+    var categories = ViewBag.Categories as List<ProductGroup>;
+}
+
+<div class="container mt-4">
+    <h2 class="mb-4">Small Basket Comparison</h2>
+    <p class="text-muted">Compare prices for essential products within the standard small basket</p>
+
+    <!-- city selection -->
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Select City:</label>
+            <select id="townSelect" class="form-select">
+                <option value="">-- Choose City --</option>
+                @if (towns != null)
+                {
+                    foreach (var town in towns)
+                    {
+                        <option value="@town.Id">@town.Name</option>
+                    }
+                }
+            </select>
+        </div>
+    </div>
+
+    <!-- search & basket -->
+    <div class="row">
+        <!-- category selection area -->
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h5>Select Essential Products</h5>
+                <div class="input-group mb-1">
+                    <select id="categorySelect" class="form-select">
+                        <option value="">-- Choose a Product Group --</option>
+                        @if (categories != null)
+                        {
+                            foreach (var cat in categories)
+                            {
+                                <option value="@cat.Id" data-name="@cat.Name">@cat.Name</option>
+                            }
+                        }
+                    </select>
+                    <button class="btn btn-primary" type="button" id="btnAddCategory">Add to Basket</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- basket list -->
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h5>Your Basket <span id="basketCount" class="badge bg-secondary">0</span></h5>
+                <ul id="basketList" class="list-group mb-3">
+                    <!-- items go here -->
+                </ul>
+                <button id="btnCompare" class="btn btn-success w-100" disabled>Compare Prices</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- results area -->
+    <div id="resultsArea" class="mt-5" style="display:none;">
+        <h3>Top 3 Cheapest Stores</h3>
+        <div id="resultsContent"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const basket = [];
+
+        $(document).ready(function () {
+            // add category item to basket
+            $("#btnAddCategory").click(function() {
+                var selectEl = $("#categorySelect");
+                var catId = selectEl.val();
+                
+                if(catId) {
+                    var catName = selectEl.find("option:selected").data("name");
+                    addToBasket(catId, catName);
+                    // Reset dropdown after add
+                    selectEl.val("");
+                } else {
+                    alert("Please select a product group to add.");
+                }
+            });
+
+            // compare basket
+            $("#btnCompare").click(function () {
+                var townId = $("#townSelect").val();
+                if (!townId) {
+                    alert("Please select a city first.");
+                    return;
+                }
+
+                // show loading
+                $("#resultsArea").show();
+                $("#resultsContent").html('<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>');
+
+                var requestData = { 
+                    items: basket, 
+                    townId: parseInt(townId),
+                    isPredefined: true // this is for telling the backend to use the mapped product logic
+                };
+
+                $.ajax({
+                    url: "/Basket/CompareBasket",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(requestData),
+                    success: function (data) {
+                        displayResults(data);
+                    },
+                    error: function (xhr) {
+                        var msg = "Error calculating prices.";
+                        if(xhr.responseJSON && xhr.responseJSON.error) {
+                            msg += " Details: " + xhr.responseJSON.error;
+                        }
+                        $("#resultsContent").html('<p class="text-danger">' + msg + '</p>');
+                    }
+                });
+            });
+
+            // save the basket
+            $(document).on('click', '.save-basket-btn', function() {
+                var storeName = $(this).data('store');
+                var totalPrice = parseFloat($(this).data('price'));
+                
+                // extract products as they were returned from the backend 
+                var storeProducts = $(this).data('products');
+
+                var requestData = {
+                    WinningSupermarket: storeName,
+                    TotalPrice: totalPrice,
+                    Items: storeProducts
+                };
+
+                $.ajax({
+                    url: '/Basket/SaveBasket',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(requestData),
+                    success: function (response) {
+                        alert(response.message);
+                    },
+                    error: function (xhr) {
+                        if (xhr.status === 401) {
+                            window.location.href = '/Identity/Account/Login';
+                        } else {
+                            alert('Failed to save basket. Please try again.');
+                        }
+                    }
+                });
+            });
+        });
+
+        function addToBasket(id, name) {
+            const existingItem = basket.find(i => i.categoryId == id);
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                basket.push({ 
+                    categoryId: parseInt(id), 
+                    productName: name, 
+                    quantity: 1 
+                });
+            }
+            renderBasket();
+        }
+
+        function removeFromBasket(index) {
+            basket.splice(index, 1);
+            renderBasket();
+        }
+
+        function updateQty(index, newVal) {
+            basket[index].quantity = parseInt(newVal) || 1;
+            renderBasketCount();
+        }
+
+        function renderBasketCount() {
+            let totalItems = 0;
+            basket.forEach(function (item) {
+                totalItems += item.quantity;
+            });
+            $("#basketCount").text(totalItems);
+        }
+
+        function renderBasket() {
+            var html = "";
+            let totalItems = 0;
+            
+            basket.forEach(function (item, index) {
+                totalItems += item.quantity;
+                html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                            ${item.productName}
+                            <div class="d-flex align-items-center">
+                                <input type="number" class="form-control form-control-sm me-2" 
+                                       style="width: 60px;" value="${item.quantity}" min="1" 
+                                       onchange="updateQty(${index}, this.value)">
+                                <button class="btn btn-sm btn-danger" onclick="removeFromBasket(${index})">X</button>
+                            </div>
+                        </li>`;
+            });
+            $("#basketList").html(html);
+            $("#basketCount").text(totalItems);
+            
+            $("#btnCompare").prop("disabled", basket.length === 0);
+        }
+
+        function displayResults(data) {
+            if (!data || data.length === 0) {
+                $("#resultsContent").html("<p>No matching stores found in this city for the selected categories.</p>");
+                return;
+            }
+
+            var html = '<div class="row">';
+            data.forEach(function (store, index) {
+                var isWinner = index === 0;
+                
+                var productsJson = JSON.stringify(store.products).replace(/"/g, '&quot;');
+                
+                var saveButton = isWinner ? `<div class="mt-2"><button class="btn btn-sm btn-outline-success save-basket-btn" data-store="${store.retailChainName}" data-price="${store.totalPrice}" data-products="${productsJson}">💾 Save Basket</button></div>` : '';
+                
+                var productsHtml = "";
+                store.products.forEach(function(p) {
+                     productsHtml += `<div><small>${p.productName} (x${p.quantity})</small> : <strong>€${p.price.toFixed(2)}</strong></div>`;
+                });
+
+                html += `
+                <div class="col-md-4">
+                    <div class="card border-success mb-3">
+                        <div class="card-header bg-success text-white fw-bold d-flex justify-content-between">
+                            <span>${store.retailChainName}</span>
+                            <span>€${store.totalPrice.toFixed(2)} EUR</span>
+                        </div>
+                        <div class="card-body">
+                             ${productsHtml}
+                            <hr>
+                            <small class="text-muted">Matched ${store.products.length} of ${basket.length} selected categories</small>
+                            ${saveButton}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            $("#resultsContent").html(html);
+        }
+    </script>
+}

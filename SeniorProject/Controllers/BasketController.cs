@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
-using SeniorProject.Services;
+using SeniorProject.Extensions;
 using SeniorProject.Models;
+using SeniorProject.Services;
 using System.Security.Claims;
 
 namespace SeniorProject.Controllers
@@ -20,14 +21,28 @@ namespace SeniorProject.Controllers
 
         public async Task<IActionResult> Index()
         {
-            ViewBag.Towns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
+            var towns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
+            // hide unmapped numerical codes that were saved from csv imports
+            ViewBag.Towns = towns.Where(t => t.Name.Any(char.IsLetter)).ToList();
             return View();
         }
 
         [HttpGet]
-        public async Task<IActionResult> SearchProducts(string term, int? townId)
+        public async Task<IActionResult> Predefined()
         {
-            var results = await _basketService.SearchAsync(term, townId);
+            // loading the towns dropdown
+            var towns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
+            // hide unmapped numerical codes that were saved directly from csv imports
+            ViewBag.Towns = towns.Where(t => t.Name.Any(char.IsLetter)).ToList();
+            // populating the categories dropdown from the product groups
+            ViewBag.Categories = await _db.ProductGroups.OrderBy(g => g.Name).ToListAsync();
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SearchProducts(string term, int? townId, CancellationToken cancellationToken)
+        {
+            var results = await _basketService.SearchAsync(term, townId, cancellationToken);
             return Json(results);
         }
 
@@ -41,32 +56,23 @@ namespace SeniorProject.Controllers
 
             try
             {
-                var results = await _basketService.CompareBasketAsync(request.Items, request.TownId);
+                List<BasketComparisonResult> results;
+                if (request.IsPredefined)
+                {
+                    // comparing the predefined category basket using the mapping logic
+                    results = await _basketService.ComparePredefinedBasketAsync(request.Items, request.TownId);
+                }
+                else
+                {
+                    // comparing the custom basket using string search
+                    results = await _basketService.CompareBasketAsync(request.Items, request.TownId);
+                }
                 return Json(results);
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace });
             }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> DebugChains(int townId)
-        {
-            if (townId == 0) return BadRequest("Provide townId");
-
-            var data = await _db.ImportedProducts
-                .Where(p => p.TownId == townId)
-                .GroupBy(p => p.RetailChain.Name)
-                .Select(g => new { 
-                    Chain = g.Key, 
-                    ProductCount = g.Count(), 
-                    LatestUpload = g.Max(p => p.ImportDate),
-                    SampleProduct = g.Select(p => p.Name).FirstOrDefault()
-                })
-                .ToListAsync();
-
-            return Json(data);
         }
 
         [HttpPost]
@@ -78,7 +84,7 @@ namespace SeniorProject.Controllers
                 return Unauthorized("You must be logged in to save a basket.");
             }
 
-            // condense all data validation into one clean check
+            //  all data validation into one check
             if (request == null || string.IsNullOrEmpty(request.WinningSupermarket) || request.Items == null || !request.Items.Any())
             {
                 return BadRequest("Invalid or missing basket data.");
@@ -94,7 +100,7 @@ namespace SeniorProject.Controllers
                 {
                     ProductName = i.ProductName,
                     Quantity = i.Quantity,
-                    UnitPrice = i.Price / (i.Quantity > 0 ? i.Quantity : 1) // store unit price for reference
+                    UnitPrice = i.Price / (i.Quantity > 0 ? i.Quantity : 1) // Store unit price for reference
                 }).ToList()
             };
 
@@ -125,50 +131,59 @@ namespace SeniorProject.Controllers
         [HttpGet]
         public async Task<IActionResult> GetBasketPriceComparison(int basketId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-            var basket = await _db.SavedBaskets
-                .Include(b => b.Items)
-                .FirstOrDefaultAsync(b => b.Id == basketId && b.UserId == userId);
-
-            if (basket == null) return NotFound("Basket not found");
-
-            // find the most recent import date for the specific supermarket
-            var latestImportDate = await _db.ImportedProducts
-                .Where(p => p.RetailChain.Name == basket.WinningSupermarket)
-                .MaxAsync(p => (DateTime?)p.ImportDate);
-
-            decimal totalCurrentPrice = 0;
-
-            foreach (var item in basket.Items)
+            try
             {
-                if (latestImportDate.HasValue)
-                {
-                    // find the current price for this specific product at the winning supermarket
-                    var currentProduct = await _db.ImportedProducts
-                        .Where(p => p.Name == item.ProductName && 
-                                    p.RetailChain.Name == basket.WinningSupermarket &&
-                                    p.ImportDate == latestImportDate)
-                        .FirstOrDefaultAsync();
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-                    if (currentProduct != null)
+                var basket = await _db.SavedBaskets
+                    .Include(b => b.Items)
+                    .FirstOrDefaultAsync(b => b.Id == basketId && b.UserId == userId);
+
+                if (basket == null) return NotFound("Basket not found");
+
+                // find the most recent import date for the specific supermarket
+                var latestImportDate = await _db.ImportedProducts
+                    .Where(p => p.RetailChain.Name == basket.WinningSupermarket)
+                    .MaxAsync(p => (DateTime?)p.ImportDate);
+
+                decimal totalCurrentPrice = 0;
+                var currentProducts = await _db.ImportedProducts
+                    .Where(p => p.RetailChain.Name == basket.WinningSupermarket &&
+                       p.ImportDate == latestImportDate)
+                    .ToListAsync();
+
+                foreach (var item in basket.Items)
+                {
+                    if (latestImportDate.HasValue)
                     {
-                        var itemCurrentPrice = currentProduct.PromoPrice ?? currentProduct.Price;
-                        // multiply the current price by the quantity of the item in the basket
-                        totalCurrentPrice += itemCurrentPrice * item.Quantity;
+                        var cleanName = item.ProductName.ToCleanSortedString();
+                        var nameHash = cleanName.GetStableHashCode();
+
+                        var currentProduct = currentProducts
+                            .FirstOrDefault(p => p.NameHash == nameHash);
+
+                        if (currentProduct != null)
+                        {
+                            var itemCurrentPrice = currentProduct.PromoPrice ?? currentProduct.Price;
+                            totalCurrentPrice += itemCurrentPrice * item.Quantity;
+                        }
                     }
                 }
+
+                var result = new 
+                {
+                    savedDate = basket.SavedDate.ToString("MMM dd, yyyy"),
+                    totalSavedPrice = basket.TotalPrice,
+                    totalCurrentPrice = totalCurrentPrice
+                };
+
+                return Json(result);
             }
-
-            var result = new 
+            catch (Exception ex)
             {
-                savedDate = basket.SavedDate.ToString("MMM dd, yyyy"),
-                totalSavedPrice = basket.TotalPrice,
-                totalCurrentPrice = totalCurrentPrice
-            };
-
-            return Json(result);
+                return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace, inner = ex.InnerException?.Message });
+            }
         }
     }
 }
