@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
 using SeniorProject.Models;
@@ -25,7 +25,9 @@ namespace SeniorProject.Controllers
                 .ToListAsync();
 
             // load towns for the filter dropdown
-            ViewBag.Towns = await db.Towns.AsNoTracking().OrderBy(t => t.Name).ToListAsync();
+            var towns = await db.Towns.AsNoTracking().OrderBy(t => t.Name).ToListAsync();
+            // hide unmapped numerical codes that were saved from csv imports
+            ViewBag.Towns = towns.Where(t => t.Name.Any(char.IsLetter)).ToList();
 
             // preserve filter state across requests
             ViewBag.GroupId = groupId;

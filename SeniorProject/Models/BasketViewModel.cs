@@ -13,12 +13,15 @@ namespace SeniorProject.Models
         public decimal Price { get; set; }
         public bool IsPromo { get; set; }
         public int Quantity { get; set; } = 1;
+        public int? CategoryId { get; set; }
     }
 
     public class CompareRequest
     {
         public List<BasketProductDetail> Items { get; set; }
         public int TownId { get; set; }
+        //  if the comparison uses predefined data mapped by the retail manager
+        public bool IsPredefined { get; set; }
     }
 
     public class SaveBasketRequest
