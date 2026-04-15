@@ -1,4 +1,4 @@
-﻿@model List<SeniorProject.Models.ImportedProduct>
+@model SeniorProject.Models.HomeViewModel
 @using Microsoft.AspNetCore.Identity
 
 @inject SignInManager<IdentityUser> SignInManager
@@ -6,128 +6,183 @@
 
 @{
     ViewData["Title"] = "Home Page";
+    var bgLocale = new System.Globalization.CultureInfo("bg-BG");
 }
 
 @if (User.IsInRole("Admin") || User.IsInRole("RetailManager"))
 {
     <div class="alert alert-info mt-4">
         <h3>Manager Tools</h3>
-
-        <a class="btn btn-primary" asp-controller="RetailManager" asp-action="Upload">
-            Go to Upload Portal
-        </a>
-
-        <a class="btn btn-secondary" asp-controller="RetailManagerMapping" asp-action="Index">
-            Open Product Mapping Tool
-        </a>
+        <a class="btn btn-primary" asp-controller="RetailManager" asp-action="Upload">Go to Upload Portal</a>
+        <a class="btn btn-secondary" asp-controller="RetailManagerMapping" asp-action="Index">Open Product Mapping Tool</a>
     </div>
 }
 
-<div class="row mb-4 mt-5">
-    <div class="col-md-12">
-        <div class="card p-3 shadow-sm">
-            <h4 class="mb-3">Find Cheapest Products</h4>
-            <form method="get" asp-action="Index">
-                <div class="row g-3">
-                    <div class="col-md-2">
-                        <label class="form-label">Search Product</label>
-                        <input type="text" name="q" class="form-control" value="@ViewBag.Query" placeholder="e.g. Milk" />
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Category</label>
-                        <select name="category" class="form-select">
-                            <option value="">-- All Categories --</option>
-                            @if (ViewBag.Categories != null)
-                            {
-                                foreach (var cat in (ViewBag.Categories as IEnumerable<string>))
-                                {
-                                    bool isSelected = !string.IsNullOrEmpty(Context.Request.Query["category"]) && Context.Request.Query["category"] == cat;
-                                    if (isSelected)
-                                    {
-                                        <option value="@cat" selected>@cat</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@cat">@cat</option>
-                                    }
-                                }
-                            }
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Town</label>
-                        <select name="townId" class="form-select">
-                            <option value="">-- All Towns --</option>
-                            @if (ViewBag.Towns != null)
-                            {
-                                foreach (var t in (ViewBag.Towns as IEnumerable<SeniorProject.Models.Town>))
-                                {
-                                    bool isSelected = ViewBag.TownId != null && (int)ViewBag.TownId == t.Id;
-                                    if (isSelected) 
-                                    {
-                                        <option value="@t.Id" selected>@t.Name</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@t.Id">@t.Name</option>
-                                    }
-                                }
-                            }
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">Filter</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<section class="text-center py-5">
+    <h1 class="display-4 brand-font" style="color: var(--basket-primary);">EuroSmetka</h1>
+    <p class="lead text-muted-warm">Your trusted guide to finding the best grocery prices and freshest promotions.</p>
+</section>
 
-@if (Model != null && Model.Any())
-{
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
-            <thead class="table-dark">
-                <tr>
-                    <th>Product</th>
-                    <th>Chain</th>
-                    <th>Town</th>
-                    <th>Category</th>
-                    <th>Price</th>
-                    <th>Promo</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var p in Model)
-                {
-                    <tr>
-                        <td>
-                            <strong>@p.Name</strong>
-                        </td>
-                        <td>@p.RetailChain?.Name</td>
-                        <td>@p.Town?.Name</td>
-                        <td>@p.Category</td>
-                        <td>@p.Price.ToString("C")</td>
-                        <td>
-                            @if (p.PromoPrice.HasValue)
+<section class="mb-5">
+    <div class="d-flex justify-content-between align-items-end mb-3">
+        <h2 class="brand-font m-0">Current Promotions</h2>
+        @if (Model.LastUpdatedDate.HasValue)
+        {
+            <small class="text-muted-warm">Last updated: @Model.LastUpdatedDate.Value.ToString("d MMMM yyyy", bgLocale)</small>
+        }
+    </div>
+
+    @if (Model.PromosByChain != null && Model.PromosByChain.Any())
+    {
+        <div class="mb-3 d-flex flex-wrap gap-2">
+            @foreach (var chain in Model.PromosByChain.Keys.OrderBy(k => k))
+            {
+                var isActive = (Model.ActiveStoreFilter == chain);
+                <a href="?store=@Uri.EscapeDataString(chain)"
+                   class="btn @(isActive ? "btn-primary" : "btn-outline-secondary") rounded-pill px-4">
+                    @chain
+                </a>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.ActiveStoreFilter) && Model.PromosByChain.ContainsKey(Model.ActiveStoreFilter))
+        {
+            var activePromos = Model.PromosByChain[Model.ActiveStoreFilter];
+            <div class="table-responsive">
+                <table class="table table-striped align-middle border">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Promo Price</th>
+                            <th>Regular Price</th>
+                            <th>Discount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var promo in activePromos)
+                        {
+                            <tr>
+                                <td><strong>@promo.ProductName</strong></td>
+                                <td class="text-danger fw-bold">@promo.PromoPrice.ToString("C")</td>
+                                <td class="text-muted text-decoration-line-through">@promo.RegularPrice.ToString("C")</td>
+                                <td>
+                                    <span class="badge bg-success">@promo.PercentDiscount%</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-warning text-center">
+            No active promotions found for today.
+        </div>
+    }
+</section>
+
+<hr class="my-5" style="border-color: var(--basket-border);" />
+
+<section class="mb-5">
+    <h3 class="mb-4 brand-font">Search for products</h3>
+    <div class="card p-4 shadow-sm border-0 mb-4 bg-white">
+        <form method="get" asp-action="Index">
+            <input type="hidden" name="store" value="@Model.ActiveStoreFilter" />
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label text-muted-warm">Search Keyword</label>
+                    <input type="text" name="q" class="form-control" value="@Model.SearchQuery" placeholder="e.g. Milk" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted-warm">Category</label>
+                    <select name="category" class="form-select">
+                        <option value="">-- All Categories --</option>
+                        @foreach (var cat in Model.AvailableCategories)
+                        {
+                            if (Model.SelectedCategory == cat)
                             {
-                                <span class="text-danger fw-bold">@p.PromoPrice.Value.ToString("C")</span>
+                                <option value="@cat" selected>@cat</option>
                             }
                             else
                             {
-                                <span class="text-muted">-</span>
+                                <option value="@cat">@cat</option>
                             }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted-warm">Town</label>
+                    <select name="townId" class="form-select">
+                        <option value="">-- All Towns --</option>
+                        @foreach (var t in Model.AvailableTowns)
+                        {
+                            if (Model.SelectedTownId == t.Id)
+                            {
+                                <option value="@t.Id" selected>@t.Name</option>
+                            }
+                            else
+                            {
+                                <option value="@t.Id">@t.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </div>
+        </form>
     </div>
-}
-else
-{
-    <div class="alert alert-warning text-center mt-4">
-        No products found. Try adjusting your filters or search query.
-    </div>
-}
+
+    @if (!string.IsNullOrWhiteSpace(Model.SearchQuery) || !string.IsNullOrEmpty(Model.SelectedCategory) || Model.SelectedTownId.HasValue)
+    {
+        <h4 class="mb-3">Search Results</h4>
+        @if (Model.SearchResults != null && Model.SearchResults.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-striped align-middle border">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Chain</th>
+                            <th>Town</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Promo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in Model.SearchResults)
+                        {
+                            <tr>
+                                <td><strong>@p.ProductName</strong></td>
+                                <td>@p.ChainName</td>
+                                <td>@p.TownName</td>
+                                <td>@p.Category</td>
+                                <td>@p.Price.ToString("C")</td>
+                                <td>
+                                    @if (p.PromoPrice.HasValue)
+                                    {
+                                        <span class="text-danger fw-bold">@p.PromoPrice.Value.ToString("C")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning text-center">
+                No products found matching your search.
+            </div>
+        }
+    }
+</section>
