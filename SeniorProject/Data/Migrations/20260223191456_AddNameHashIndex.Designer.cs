@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SeniorProject.Data;
 
@@ -11,9 +12,11 @@ using SeniorProject.Data;
 namespace SeniorProject.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260223191456_AddNameHashIndex")]
+    partial class AddNameHashIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -234,7 +237,7 @@ namespace SeniorProject.Data.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CleanName")
                         .IsRequired()
@@ -268,11 +271,7 @@ namespace SeniorProject.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Category");
-
                     b.HasIndex("CleanName");
-
-                    b.HasIndex("ImportDate");
 
                     b.HasIndex("Name");
 
@@ -341,61 +340,6 @@ namespace SeniorProject.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("RetailChains");
-                });
-
-            modelBuilder.Entity("SeniorProject.Models.SavedBasket", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("SavedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("TotalPrice")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WinningSupermarket")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SavedBaskets");
-                });
-
-            modelBuilder.Entity("SeniorProject.Models.SavedBasketItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ProductName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SavedBasketId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SavedBasketId");
-
-                    b.ToTable("SavedBasketItems");
                 });
 
             modelBuilder.Entity("SeniorProject.Models.Town", b =>
@@ -484,22 +428,6 @@ namespace SeniorProject.Data.Migrations
                     b.Navigation("RetailChain");
 
                     b.Navigation("Town");
-                });
-
-            modelBuilder.Entity("SeniorProject.Models.SavedBasketItem", b =>
-                {
-                    b.HasOne("SeniorProject.Models.SavedBasket", "SavedBasket")
-                        .WithMany("Items")
-                        .HasForeignKey("SavedBasketId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SavedBasket");
-                });
-
-            modelBuilder.Entity("SeniorProject.Models.SavedBasket", b =>
-                {
-                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

@@ -6,6 +6,5 @@ namespace SeniorProject.Models
         public decimal PromoPrice { get; set; }
         public decimal RegularPrice { get; set; }
         public double PercentDiscount { get; set; }
-        public DateTime ImportDate { get; set; }
     }
 }

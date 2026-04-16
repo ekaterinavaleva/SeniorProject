@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 namespace SeniorProject.Models
 {
     [Index(nameof(NameHash))]
+    [Index(nameof(ImportDate))]
+    [Index(nameof(Category))]
+    [Index(nameof(TownId), nameof(RetailChainId), nameof(ImportDate))]
     public class ImportedProduct
     {
         public int Id { get; set; }
