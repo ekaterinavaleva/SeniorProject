@@ -1,4 +1,3 @@
-@model SeniorProject.Models.HomeViewModel
 @using Microsoft.AspNetCore.Identity
 
 @inject SignInManager<IdentityUser> SignInManager
@@ -6,7 +5,6 @@
 
 @{
     ViewData["Title"] = "Home Page";
-    var bgLocale = new System.Globalization.CultureInfo("bg-BG");
 }
 
 @if (User.IsInRole("Admin") || User.IsInRole("RetailManager"))
@@ -20,169 +18,27 @@
 
 <section class="text-center py-5">
     <h1 class="display-4 brand-font" style="color: var(--basket-primary);">EuroSmetka</h1>
-    <p class="lead text-muted-warm">Your trusted guide to finding the best grocery prices and freshest promotions.</p>
+    <p class="lead text-muted-warm" style="font-size: 1.25rem;">A price monitoring tool for grocery products across major retail chains in Bulgaria.</p>
+    <p class="mt-3 text-secondary" style="font-size: 1.1rem; line-height: 1.6;">EuroSmetka aggregates and analyzes daily product price data published on <a href="https://kolkostruva.bg" target="_blank" class="text-decoration-none border-bottom border-primary fw-medium">kolkostruva.bg</a> - the official price monitoring portal maintained by the Bulgarian Consumer Protection Commission (КЗП) under the Law on the Introduction of the Euro in the Republic of Bulgaria. The platform enables consumers to compare individual product prices across retail chains operating in Sofia, Plovdiv, Varna, Burgas, and Blagoevgrad.</p>
 </section>
 
-<section class="mb-5">
-    <div class="d-flex justify-content-between align-items-end mb-3">
-        <h2 class="brand-font m-0">Current Promotions</h2>
-        @if (Model.LastUpdatedDate.HasValue)
-        {
-            <small class="text-muted-warm">Last updated: @Model.LastUpdatedDate.Value.ToString("d MMMM yyyy", bgLocale)</small>
-        }
-    </div>
-
-    @if (Model.PromosByChain != null && Model.PromosByChain.Any())
-    {
-        <div class="mb-3 d-flex flex-wrap gap-2">
-            @foreach (var chain in Model.PromosByChain.Keys.OrderBy(k => k))
-            {
-                var isActive = (Model.ActiveStoreFilter == chain);
-                <a href="?store=@Uri.EscapeDataString(chain)"
-                   class="btn @(isActive ? "btn-primary" : "btn-outline-secondary") rounded-pill px-4">
-                    @chain
-                </a>
-            }
+<section class="mb-5 py-5 bg-light rounded-4 shadow-sm px-4 border">
+    <h2 class="brand-font text-center mb-5 text-dark">How it works</h2>
+    <div class="row text-center g-5">
+        <div class="col-md-4">
+            <div class="h1 mb-4 text-primary"><i class="bi bi-tags"></i></div>
+            <h4 class="brand-font fw-bold text-dark">1. Browse Promotions</h4>
+            <p class="text-muted" style="font-size: 1.05rem;">View products currently offered at a promotional price across all tracked retail chains, sorted by discount.</p>
         </div>
-
-        @if (!string.IsNullOrEmpty(Model.ActiveStoreFilter) && Model.PromosByChain.ContainsKey(Model.ActiveStoreFilter))
-        {
-            var activePromos = Model.PromosByChain[Model.ActiveStoreFilter];
-            <div class="table-responsive">
-                <table class="table table-striped align-middle border">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Product</th>
-                            <th>Promo Price</th>
-                            <th>Regular Price</th>
-                            <th>Discount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var promo in activePromos)
-                        {
-                            <tr>
-                                <td><strong>@promo.ProductName</strong></td>
-                                <td class="text-danger fw-bold">@promo.PromoPrice.ToString("C")</td>
-                                <td class="text-muted text-decoration-line-through">@promo.RegularPrice.ToString("C")</td>
-                                <td>
-                                    <span class="badge bg-success">@promo.PercentDiscount%</span>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-    }
-    else
-    {
-        <div class="alert alert-warning text-center">
-            No active promotions found for today.
+        <div class="col-md-4">
+            <div class="h1 mb-4 text-success"><i class="bi bi-search"></i></div>
+            <h4 class="brand-font fw-bold text-dark">2. Search Products</h4>
+            <p class="text-muted" style="font-size: 1.05rem;">Look up a specific product by name and compare its current price across stores in your city.</p>
         </div>
-    }
-</section>
-
-<hr class="my-5" style="border-color: var(--basket-border);" />
-
-<section class="mb-5">
-    <h3 class="mb-4 brand-font">Search for products</h3>
-    <div class="card p-4 shadow-sm border-0 mb-4 bg-white">
-        <form method="get" asp-action="Index">
-            <input type="hidden" name="store" value="@Model.ActiveStoreFilter" />
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label text-muted-warm">Search Keyword</label>
-                    <input type="text" name="q" class="form-control" value="@Model.SearchQuery" placeholder="e.g. Milk" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label text-muted-warm">Category</label>
-                    <select name="category" class="form-select">
-                        <option value="">-- All Categories --</option>
-                        @foreach (var cat in Model.AvailableCategories)
-                        {
-                            if (Model.SelectedCategory == cat)
-                            {
-                                <option value="@cat" selected>@cat</option>
-                            }
-                            else
-                            {
-                                <option value="@cat">@cat</option>
-                            }
-                        }
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label text-muted-warm">Town</label>
-                    <select name="townId" class="form-select">
-                        <option value="">-- All Towns --</option>
-                        @foreach (var t in Model.AvailableTowns)
-                        {
-                            if (Model.SelectedTownId == t.Id)
-                            {
-                                <option value="@t.Id" selected>@t.Name</option>
-                            }
-                            else
-                            {
-                                <option value="@t.Id">@t.Name</option>
-                            }
-                        }
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Filter</button>
-                </div>
-            </div>
-        </form>
+        <div class="col-md-4">
+            <div class="h1 mb-4 text-warning"><i class="bi bi-basket"></i></div>
+            <h4 class="brand-font fw-bold text-dark">3. Compare Baskets</h4>
+            <p class="text-muted" style="font-size: 1.05rem;">Select a set of essential products and see which store offers the lowest total price for your basket.</p>
+        </div>
     </div>
-
-    @if (!string.IsNullOrWhiteSpace(Model.SearchQuery) || !string.IsNullOrEmpty(Model.SelectedCategory) || Model.SelectedTownId.HasValue)
-    {
-        <h4 class="mb-3">Search Results</h4>
-        @if (Model.SearchResults != null && Model.SearchResults.Any())
-        {
-            <div class="table-responsive">
-                <table class="table table-striped align-middle border">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Product</th>
-                            <th>Chain</th>
-                            <th>Town</th>
-                            <th>Category</th>
-                            <th>Price</th>
-                            <th>Promo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var p in Model.SearchResults)
-                        {
-                            <tr>
-                                <td><strong>@p.ProductName</strong></td>
-                                <td>@p.ChainName</td>
-                                <td>@p.TownName</td>
-                                <td>@p.Category</td>
-                                <td>@p.Price.ToString("C")</td>
-                                <td>
-                                    @if (p.PromoPrice.HasValue)
-                                    {
-                                        <span class="text-danger fw-bold">@p.PromoPrice.Value.ToString("C")</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-        else
-        {
-            <div class="alert alert-warning text-center">
-                No products found matching your search.
-            </div>
-        }
-    }
 </section>

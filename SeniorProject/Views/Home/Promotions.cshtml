@@ -1,0 +1,72 @@
+@model SeniorProject.Models.HomeViewModel
+
+@{
+    ViewData["Title"] = "Promotions";
+    var bgLocale = new System.Globalization.CultureInfo("bg-BG");
+}
+
+<div class="container mt-4">
+    <div class="text-center mb-5">
+        <h2 class="display-5 brand-font text-primary">Daily Promotions</h2>
+        <p class="lead text-muted-warm">Discover the latest discounts and special offers across major supermarkets.</p>
+    </div>
+
+    <section class="mb-5">
+        <div class="d-flex justify-content-end align-items-end mb-3">
+            @if (Model.LastUpdatedDate.HasValue)
+            {
+                <small class="text-muted-warm">Last updated: @Model.LastUpdatedDate.Value.ToString("d MMMM yyyy", bgLocale)</small>
+            }
+        </div>
+
+        @if (Model.PromosByChain != null && Model.PromosByChain.Any())
+        {
+            <div class="mb-3 d-flex flex-wrap gap-2">
+                @foreach (var chain in Model.PromosByChain.Keys.OrderBy(k => k))
+                {
+                    var isActive = (Model.ActiveStoreFilter == chain);
+                    <a href="?store=@Uri.EscapeDataString(chain)"
+                       class="btn @(isActive ? "btn-primary" : "btn-outline-secondary") rounded-pill px-4">
+                        @chain
+                    </a>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.ActiveStoreFilter) && Model.PromosByChain.ContainsKey(Model.ActiveStoreFilter))
+            {
+                var activePromos = Model.PromosByChain[Model.ActiveStoreFilter];
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle border shadow-sm rounded-3 overflow-hidden">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th>Promo Price</th>
+                                <th>Regular Price</th>
+                                <th>Discount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var promo in activePromos)
+                            {
+                                <tr>
+                                    <td><strong>@promo.ProductName</strong></td>
+                                    <td class="text-danger fw-bold">@promo.PromoPrice.ToString("C")</td>
+                                    <td class="text-muted text-decoration-line-through">@promo.RegularPrice.ToString("C")</td>
+                                    <td>
+                                        <span class="badge bg-success">@promo.PercentDiscount%</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="alert alert-warning text-center">
+                No active promotions found for today.
+            </div>
+        }
+    </section>
+</div>

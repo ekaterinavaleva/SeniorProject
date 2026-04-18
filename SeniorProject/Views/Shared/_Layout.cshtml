@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/SeniorProject.styles.css" asp-append-version="true" />
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm mb-3">
             <div class="container-fluid">
@@ -25,7 +25,13 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
-
+                        <!-- nav links for Promotions and ProductSearch -->
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Promotions">Promotions</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="ProductSearch">Product Search</a>
+                        </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle text-dark" href="#" id="navbarBasketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 Basket
@@ -47,13 +53,13 @@
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+    <div class="container flex-grow-1 mb-5 pb-5">
+        <main role="main" class="pb-5 mb-5">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted-warm">
+    <footer class="border-top footer text-muted-warm mt-auto w-100">
         <div class="container">
             &copy; 2026 - EuroSmetka
         </div>
@@ -72,11 +78,11 @@
     </script>
     <script async defer src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     
-    <!-- Hide External Login Sections from Default Identity UI -->
+    <!-- hide login sections from UI-->
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             document.querySelectorAll("h3, h4").forEach(h => {
-                if (h.innerText.includes("Use another service to log in")) {
+                if (h.innerText.includes("Use another service to log in") || h.innerText.includes("Use another service to register")) {
                     let col = h.closest(".col-md-6");
                     if (col) col.style.display = "none";
                 }

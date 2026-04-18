@@ -1,0 +1,153 @@
+@model SeniorProject.Models.HomeViewModel
+
+@{
+    ViewData["Title"] = "Product Search";
+}
+
+<div class="container mt-4">
+    <div class="text-center mb-5">
+        <h2 class="display-5 brand-font text-success">Product Search</h2>
+        <p class="lead text-muted-warm">Find the best prices for individual products in your town.</p>
+    </div>
+
+    <section class="mb-5">
+        <div class="card p-4 shadow-sm border-0 mb-4 bg-white">
+            <form method="get" asp-action="ProductSearch">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label text-muted-warm">Search Keyword</label>
+                        <div class="position-relative">
+                            <input type="text" id="productSearch" name="q" class="form-control" value="@Model.SearchQuery" placeholder="e.g. Vereia Milk" autocomplete="off" />
+                            <div id="suggestions" class="list-group shadow-sm border" style="position:absolute; top: 100%; left: 0; width: 100%; z-index: 1050; display:none; max-height: 300px; overflow-y: auto;"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label text-muted-warm">Town</label>
+                        <select name="townId" id="townSelect" class="form-select">
+                            <option value="">-- All Towns --</option>
+                            @if (Model.AvailableTowns != null)
+                            {
+                                foreach (var t in Model.AvailableTowns)
+                                {
+                                    if (Model.SelectedTownId == t.Id)
+                                    {
+                                        <option value="@t.Id" selected>@t.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@t.Id">@t.Name</option>
+                                    }
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success w-100">Search</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.SearchQuery) || Model.SelectedTownId.HasValue)
+        {
+            <h4 class="mb-3">Search Results</h4>
+            @if (Model.SearchResults != null && Model.SearchResults.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle border shadow-sm rounded-3 overflow-hidden">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th>Chain</th>
+                                <th>Town</th>
+                                <th>Category</th>
+                                <th>Price</th>
+                                <th>Promo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in Model.SearchResults)
+                            {
+                                <tr>
+                                    <td><strong>@p.ProductName</strong></td>
+                                    <td>@p.ChainName</td>
+                                    <td>@p.TownName</td>
+                                    <td>@p.Category</td>
+                                    <td>@p.Price.ToString("C")</td>
+                                    <td>
+                                        @if (p.PromoPrice.HasValue)
+                                        {
+                                            <span class="text-danger fw-bold">@p.PromoPrice.Value.ToString("C")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-warning text-center">
+                    No products found matching your search.
+                </div>
+            }
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        let searchTimeout = null;
+        $(document).ready(function () {
+            // autocomplete search
+            $("#productSearch").on("input", function () {
+                var term = $(this).val();
+                var townId = $("#townSelect").val();
+
+                if (term.length < 2) {
+                    $("#suggestions").hide();
+                    return;
+                }
+
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+
+                searchTimeout = setTimeout(function() {
+                    $.get("/Basket/SearchProducts", { term: term, townId: townId }, function (data) {
+                        var html = "";
+                        data.forEach(function (item) {
+                            html += `<a href="#" class="list-group-item list-group-item-action suggestion-item" data-name="${item}">${item}</a>`;
+                        });
+                        
+                        if(data.length > 0){
+                             $("#suggestions").html(html).show();
+                        } else {
+                             $("#suggestions").hide();
+                        }
+                    });
+                }, 350); // wait 350ms after user stops typing
+            });
+
+            // add item when suggestion clicked
+            $(document).on("click", ".suggestion-item", function (e) {
+                e.preventDefault();
+                var name = $(this).data("name");
+                $("#productSearch").val(name);
+                $("#suggestions").hide();
+            });
+
+            // hide suggestions when clicking outside
+            $(document).click(function(event) {
+                if (!$(event.target).closest('.position-relative').length) {
+                    $("#suggestions").hide();
+                }
+            });
+        });
+    </script>
+}

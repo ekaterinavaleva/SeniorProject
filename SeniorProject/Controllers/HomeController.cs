@@ -18,29 +18,22 @@ namespace SeniorProject.Controllers
             _db = db;
         }
 
-        public async Task<IActionResult> Index(string? q, int? townId, string? category, string? store)
+        public IActionResult Index()
         {
+            return View();
+        }
 
-
+        // isolate promotions logic
+        // cache the data for the promo page for 1h
+        [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
+        public async Task<IActionResult> Promotions(string? store)
+        {
             _db.Database.SetCommandTimeout(300);
 
-            var viewModel = new HomeViewModel
-            {
-                SearchQuery = q,
-                SelectedCategory = category,
-                SelectedTownId = townId
-            };
+            var viewModel = new HomeViewModel();
 
             try
             {
-                viewModel.AvailableTowns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
-                viewModel.AvailableCategories = await _db.ImportedProducts
-                                                  .Where(p => !string.IsNullOrEmpty(p.Category))
-                                                  .Select(p => p.Category)
-                                                  .Distinct()
-                                                  .OrderBy(c => c)
-                                                  .ToListAsync();
-
                 var recentDate = await _db.ImportedProducts.MaxAsync(p => (DateTime?)p.ImportDate) ?? DateTime.UtcNow;
                 viewModel.LastUpdatedDate = recentDate;
 
@@ -85,25 +78,46 @@ namespace SeniorProject.Controllers
                     viewModel.ActiveStoreFilter = store;
                 }
 
+                return View(viewModel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading promotions page.");
+                return View(new HomeViewModel()); 
+            }
+        }
+
+        // isolate product search logic
+        // cache the data for the search page for 1h
+        [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
+        public async Task<IActionResult> ProductSearch(string? q, int? townId)
+        {
+            _db.Database.SetCommandTimeout(300);
+
+            var viewModel = new HomeViewModel
+            {
+                SearchQuery = q,
+                SelectedTownId = townId
+            };
+
+            try
+            {
+                viewModel.AvailableTowns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
+
                 var query = _db.ImportedProducts
-                    .AsNoTracking() // this is because the query times out otherwise
+                    .AsNoTracking()
                     .Include(p => p.Town)
                     .Include(p => p.RetailChain)
                     .AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(q))
                 {
-                    query = query.Where(p => p.Name.Contains(q) || p.Category.Contains(q));
+                    query = query.Where(p => p.Name.Contains(q));
                 }
 
                 if (townId.HasValue)
                 {
                     query = query.Where(p => p.TownId == townId);
-                }
-
-                if (!string.IsNullOrEmpty(category))
-                {
-                    query = query.Where(p => p.Category == category);
                 }
 
                 ViewBag.Query = q;
@@ -123,20 +137,19 @@ namespace SeniorProject.Controllers
                     })
                     .ToListAsync();
 
-
                 return View(viewModel);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error loading home page.");
+                _logger.LogError(ex, "Error loading product search page.");
                 return View(new HomeViewModel()); 
             }
         }
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-            public IActionResult Error()
-            {
-                return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-            }
+        public IActionResult Error()
+        {
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
     }
+}
