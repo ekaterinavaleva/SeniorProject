@@ -15,13 +15,6 @@
             <form method="get" asp-action="ProductSearch">
                 <div class="row g-3">
                     <div class="col-md-5">
-                        <label class="form-label text-muted-warm">Search Keyword</label>
-                        <div class="position-relative">
-                            <input type="text" id="productSearch" name="q" class="form-control" value="@Model.SearchQuery" placeholder="e.g. Vereia Milk" autocomplete="off" />
-                            <div id="suggestions" class="list-group shadow-sm border" style="position:absolute; top: 100%; left: 0; width: 100%; z-index: 1050; display:none; max-height: 300px; overflow-y: auto;"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-5">
                         <label class="form-label text-muted-warm">Town</label>
                         <select name="townId" id="townSelect" class="form-select">
                             <option value="">-- All Towns --</option>
@@ -40,6 +33,13 @@
                                 }
                             }
                         </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label text-muted-warm">Search Keyword</label>
+                        <div class="position-relative">
+                            <input type="text" id="productSearch" name="q" class="form-control" value="@Model.SearchQuery" placeholder="e.g. Vereia Milk" autocomplete="off" />
+                            <div id="suggestions" class="list-group shadow-sm border" style="position:absolute; top: 100%; left: 0; width: 100%; z-index: 1050; display:none; max-height: 300px; overflow-y: auto;"></div>
+                        </div>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <button type="submit" class="btn btn-success w-100">Search</button>

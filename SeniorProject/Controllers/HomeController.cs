@@ -102,7 +102,11 @@ namespace SeniorProject.Controllers
 
             try
             {
-                viewModel.AvailableTowns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
+                var allTowns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
+                var allowedTowns = new[] { "Burgas", "Sofia", "Varna", "Plovdiv", "Blagoevgrad", "Бургас", "София", "Варна", "Пловдив", "Благоевград" };
+                viewModel.AvailableTowns = allTowns
+                    .Where(t => allowedTowns.Any(a => string.Equals(a, t.Name, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
 
                 var query = _db.ImportedProducts
                     .AsNoTracking()

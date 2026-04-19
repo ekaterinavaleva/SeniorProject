@@ -357,6 +357,9 @@ namespace SeniorProject.Data.Migrations
                     b.Property<decimal>("TotalPrice")
                         .HasColumnType("decimal(18, 2)");
 
+                    b.Property<int?>("TownId")
+                        .HasColumnType("int");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -366,6 +369,8 @@ namespace SeniorProject.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TownId");
 
                     b.ToTable("SavedBaskets");
                 });
@@ -482,6 +487,15 @@ namespace SeniorProject.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("RetailChain");
+
+                    b.Navigation("Town");
+                });
+
+            modelBuilder.Entity("SeniorProject.Models.SavedBasket", b =>
+                {
+                    b.HasOne("SeniorProject.Models.Town", "Town")
+                        .WithMany()
+                        .HasForeignKey("TownId");
 
                     b.Navigation("Town");
                 });

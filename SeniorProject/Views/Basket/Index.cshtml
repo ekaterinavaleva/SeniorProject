@@ -64,7 +64,7 @@
 @section Scripts {
     <script>
         const basket = [];
-
+        let searchTimeout = null;
         $(document).ready(function () {
             // autocomplete search
             $("#productSearch").on("input", function () {
@@ -76,18 +76,24 @@
                     return;
                 }
 
-                $.get("/Basket/SearchProducts", { term: term, townId: townId }, function (data) {
-                    var html = "";
-                    data.forEach(function (item) {
-                        html += `<a href="#" class="list-group-item list-group-item-action suggestion-item" data-name="${item}">${item}</a>`;
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+
+                searchTimeout = setTimeout(function() {
+                    $.get("/Basket/SearchProducts", { term: term, townId: townId }, function (data) {
+                        var html = "";
+                        data.forEach(function (item) {
+                            html += `<a href="#" class="list-group-item list-group-item-action suggestion-item" data-name="${item}">${item}</a>`;
+                        });
+                        
+                        if(data.length > 0){
+                             $("#suggestions").html(html).show();
+                        } else {
+                             $("#suggestions").hide();
+                        }
                     });
-                    
-                    if(data.length > 0){
-                         $("#suggestions").html(html).show();
-                    } else {
-                         $("#suggestions").hide();
-                    }
-                });
+                }, 350); // wait 350ms after user stops typing
             });
 
             // add item to basket
@@ -142,6 +148,7 @@
             $(document).on('click', '.save-basket-btn', function() {
                 var storeName = $(this).data('store');
                 var totalPrice = parseFloat($(this).data('price'));
+                var townId = $(this).data('town');
                 
                 // extract products as they were returned from the backend 
                 var storeProducts = $(this).data('products');
@@ -149,6 +156,7 @@
                 var requestData = {
                     WinningSupermarket: storeName,
                     TotalPrice: totalPrice,
+                    TownId: townId ? parseInt(townId) : null,
                     Items: storeProducts
                 };
 
@@ -222,6 +230,7 @@
         }
 
         function displayResults(data) {
+            var selectedTownId = $("#townSelect").val();
             if (!data || data.length === 0) {
                 $("#resultsContent").html("<p>No matching stores found in this city.</p>");
                 return;
@@ -233,7 +242,7 @@
                 
                 var productsJson = JSON.stringify(store.products).replace(/"/g, '&quot;');
                 
-                var saveButton = isWinner ? `<div class="mt-2"><button class="btn btn-sm btn-outline-success save-basket-btn" data-store="${store.retailChainName}" data-price="${store.totalPrice}" data-products="${productsJson}">💾 Save Basket</button></div>` : '';
+                var saveButton = isWinner ? `<div class="mt-2"><button class="btn btn-sm btn-outline-success save-basket-btn" data-store="${store.retailChainName}" data-price="${store.totalPrice}" data-town="${selectedTownId}" data-products="${productsJson}">💾 Save Basket</button></div>` : '';
                 
                 var productsHtml = "";
                 store.products.forEach(function(p) {

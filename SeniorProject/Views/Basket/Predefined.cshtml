@@ -2,7 +2,8 @@
 @{
     ViewData["Title"] = "Small Basket Comparison";
     var towns = ViewBag.Towns as List<Town>;
-    var categories = ViewBag.Categories as List<ProductGroup>;
+    var mappedCategories = ViewBag.Categories as List<ProductGroup>;
+    var unmappedCategories = ViewBag.UnmappedCategories as Dictionary<int, string>;
 }
 
 <div class="container mt-4">
@@ -32,19 +33,12 @@
         <div class="col-md-6">
             <div class="card p-3">
                 <h5>Select Essential Products</h5>
-                <div class="input-group mb-1">
-                    <select id="categorySelect" class="form-select">
-                        <option value="">-- Choose a Product Group --</option>
-                        @if (categories != null)
-                        {
-                            foreach (var cat in categories)
-                            {
-                                <option value="@cat.Id" data-name="@cat.Name">@cat.Name</option>
-                            }
-                        }
-                    </select>
-                    <button class="btn btn-primary" type="button" id="btnAddCategory">Add to Basket</button>
+                <div class="position-relative">
+                    <input type="text" id="categorySearch" class="form-control mb-1" placeholder="Search categories..." autocomplete="off">
+                    <!-- Autocomplete suggestions container -->
+                    <div id="suggestions" class="list-group shadow-sm border" style="position:absolute; top: 100%; left: 0; width: 100%; z-index: 1050; display:none; max-height: 300px; overflow-y: auto;"></div>
                 </div>
+                <small class="text-muted d-block mt-1">Type to search. Click suggestion to add.</small>
             </div>
         </div>
 
@@ -70,21 +64,43 @@
 @section Scripts {
     <script>
         const basket = [];
+        const unmappedData = @Html.Raw(Json.Serialize(unmappedCategories?.Select(c => new { id = c.Key, name = c.Value })));
+        const availableCategories = unmappedData || [];
 
         $(document).ready(function () {
-            // add category item to basket
-            $("#btnAddCategory").click(function() {
-                var selectEl = $("#categorySelect");
-                var catId = selectEl.val();
-                
-                if(catId) {
-                    var catName = selectEl.find("option:selected").data("name");
-                    addToBasket(catId, catName);
-                    // Reset dropdown after add
-                    selectEl.val("");
-                } else {
-                    alert("Please select a product group to add.");
+            // autocomplete search
+            $("#categorySearch").on("input", function () {
+                var term = $(this).val().toLowerCase();
+
+                if (term.length < 1) {
+                    $("#suggestions").hide();
+                    return;
                 }
+
+                var filtered = availableCategories.filter(function(c) {
+                    return c.name.toLowerCase().includes(term);
+                });
+
+                var html = "";
+                filtered.forEach(function (item) {
+                    html += `<a href="#" class="list-group-item list-group-item-action suggestion-item" data-id="${item.id}" data-name="${item.name}">${item.name}</a>`;
+                });
+                
+                if(html.length > 0) {
+                     $("#suggestions").html(html).show();
+                } else {
+                     $("#suggestions").hide();
+                }
+            });
+
+            // add item to basket
+            $(document).on("click", ".suggestion-item", function (e) {
+                e.preventDefault();
+                var id = $(this).data("id");
+                var name = $(this).data("name");
+                addToBasket(id, name);
+                $("#suggestions").hide();
+                $("#categorySearch").val("");
             });
 
             // compare basket
@@ -127,6 +143,7 @@
             $(document).on('click', '.save-basket-btn', function() {
                 var storeName = $(this).data('store');
                 var totalPrice = parseFloat($(this).data('price'));
+                var townId = $(this).data('town');
                 
                 // extract products as they were returned from the backend 
                 var storeProducts = $(this).data('products');
@@ -134,6 +151,7 @@
                 var requestData = {
                     WinningSupermarket: storeName,
                     TotalPrice: totalPrice,
+                    TownId: townId ? parseInt(townId) : null,
                     Items: storeProducts
                 };
 
@@ -211,6 +229,7 @@
         }
 
         function displayResults(data) {
+            var selectedTownId = $("#townSelect").val();
             if (!data || data.length === 0) {
                 $("#resultsContent").html("<p>No matching stores found in this city for the selected categories.</p>");
                 return;
@@ -222,7 +241,7 @@
                 
                 var productsJson = JSON.stringify(store.products).replace(/"/g, '&quot;');
                 
-                var saveButton = isWinner ? `<div class="mt-2"><button class="btn btn-sm btn-outline-success save-basket-btn" data-store="${store.retailChainName}" data-price="${store.totalPrice}" data-products="${productsJson}">💾 Save Basket</button></div>` : '';
+                var saveButton = isWinner ? `<div class="mt-2"><button class="btn btn-sm btn-outline-success save-basket-btn" data-store="${store.retailChainName}" data-price="${store.totalPrice}" data-town="${selectedTownId}" data-products="${productsJson}">💾 Save Basket</button></div>` : '';
                 
                 var productsHtml = "";
                 store.products.forEach(function(p) {

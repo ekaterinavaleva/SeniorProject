@@ -85,6 +85,24 @@
                         priceChart.destroy();
                     }
 
+                    // Determine colors based on highest vs lowest price
+                    let savedPriceColor = '';
+                    let currentPriceColor = '';
+                    const terracotta = '#C1440E';
+                    const forestGreen = '#4A7C59';
+                    const warmGray = '#B4AFA8';
+
+                    if (data.totalSavedPrice > data.totalCurrentPrice) {
+                        savedPriceColor = terracotta;    // Saved was higher
+                        currentPriceColor = forestGreen; // Current is lower (better)
+                    } else if (data.totalSavedPrice < data.totalCurrentPrice) {
+                        savedPriceColor = forestGreen;   // Saved was lower (better)
+                        currentPriceColor = terracotta;  // Current is higher
+                    } else {
+                        savedPriceColor = warmGray;
+                        currentPriceColor = warmGray;
+                    }
+
                     priceChart = new Chart(ctx, {
                         type: 'line',
                         data: {
@@ -93,10 +111,10 @@
                                 {
                                     label: 'Total Basket Price at ' + storeName,
                                     data: [data.totalSavedPrice, data.totalCurrentPrice],
-                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    backgroundColor: 'rgba(180, 175, 168, 0.2)',
+                                    borderColor: warmGray,
                                     borderWidth: 2,
-                                    pointBackgroundColor: ['rgba(54, 162, 235, 1)', 'rgba(255, 99, 132, 1)'],
+                                    pointBackgroundColor: [savedPriceColor, currentPriceColor],
                                     pointBorderColor: '#fff',
                                     pointBorderWidth: 2,
                                     pointRadius: 6,

@@ -19,5 +19,8 @@ namespace SeniorProject.Models
         public decimal TotalPrice { get; set; }
         
         public List<SavedBasketItem> Items { get; set; } = new List<SavedBasketItem>();
+        
+        public int? TownId { get; set; }
+        public Town Town { get; set; }
     }
 }

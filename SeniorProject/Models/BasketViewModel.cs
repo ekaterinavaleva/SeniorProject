@@ -28,6 +28,7 @@ namespace SeniorProject.Models
     {
         public string WinningSupermarket { get; set; }
         public decimal TotalPrice { get; set; }
+        public int? TownId { get; set; }
         public List<BasketProductDetail> Items { get; set; }
     }
 }
