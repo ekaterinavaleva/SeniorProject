@@ -1,5 +1,19 @@
+:root {
+  --basket-primary: #C1440E;
+  --basket-primary-hover: #A0380A;
+  --basket-secondary: #4A7C59;
+  --basket-bg: #FDFAF6;
+  --basket-surface: #FFFFFF;
+  --basket-border: #EDE8E0;
+  --basket-text: #1C1A17;
+  --basket-text-muted: #6B6460;
+  --basket-danger: #A8352A;
+}
+
 html {
   font-size: 14px;
+  position: relative;
+  min-height: 100%;
 }
 
 @media (min-width: 768px) {
@@ -8,15 +22,95 @@ html {
   }
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
-}
-
 body {
-  margin-bottom: 60px;
+  background-color: var(--basket-bg);
+  color: var(--basket-text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+}
+
+.footer {
+  white-space: nowrap;
+  line-height: 60px;
+  background-color: var(--basket-bg);
+}
+
+h1, h2, h3, h4, h5, h6, .brand-font {
+  font-family: 'Lora', serif;
+  font-weight: 600;
+  color: var(--basket-text);
+}
+
+.text-muted-warm, .text-muted {
+  color: var(--basket-text-muted) !important;
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.2rem rgba(193, 68, 14, 0.25);
+  border-color: var(--basket-primary);
+}
+
+.btn-primary {
+  background-color: var(--basket-primary);
+  border-color: var(--basket-primary);
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: none !important;
+}
+
+.btn-primary:hover, .btn-primary:active, .btn-primary:focus {
+  background-color: var(--basket-primary-hover) !important;
+  border-color: var(--basket-primary-hover) !important;
+  box-shadow: none !important;
+}
+
+.card {
+  background-color: var(--basket-surface);
+  border: 1px solid var(--basket-border) !important;
+  border-radius: 12px;
+  box-shadow: none !important;
+}
+
+.card-header, .card-footer {
+  background-color: var(--basket-surface);
+  border-bottom: 1px solid var(--basket-border);
+}
+
+.card-body {
+  padding: 16px 20px;
+}
+
+.form-control {
+  background-color: #FFFFFF;
+  border: 1px solid var(--basket-border);
+  border-radius: 8px;
+  color: var(--basket-text);
+}
+
+.table {
+  color: var(--basket-text);
+  border-collapse: collapse;
+}
+
+.table th, .table td {
+  border-color: var(--basket-border);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: var(--basket-surface);
+}
+
+.table-striped tbody tr:nth-of-type(even) {
+  background-color: var(--basket-bg);
+}
+
+.badge.bg-success, .badge.badge-success {
+  background-color: var(--basket-secondary) !important;
+  color: #fff;
+  border-radius: 50rem;
+}
+
+.navbar {
+  background-color: var(--basket-bg) !important;
+  border-bottom: 1px solid var(--basket-border) !important;
 }

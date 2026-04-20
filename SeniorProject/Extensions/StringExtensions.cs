@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Text.RegularExpressions;
 
 namespace SeniorProject.Extensions
 {
@@ -24,18 +25,21 @@ namespace SeniorProject.Extensions
             if (string.IsNullOrWhiteSpace(str)) return string.Empty;
 
             string cleaned = str
-                .Replace(".", " ")
-                .Replace(",", " ")
-                .Replace("-", " ")
-                .Replace("/", " ")
-                .Replace("*", " ")
-                .Replace("=", " ")
+                .Replace(".", "")
+                .Replace(",", "")
+                .Replace("-", "")
+                .Replace("/", "")
+                .Replace("*", "")
+                .Replace("=", "")
+                .Replace("#", "")
                 .ToLowerInvariant();
+
+            cleaned = Regex.Replace(cleaned, @"(\d+)\s*(кг|гр|л|мл)\b", "$1$2");
 
             var words = cleaned.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             Array.Sort(words);
 
-            return string.Join(" ", words);
+            return string.Join("", words);
         }
     }
 }
