@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
 using SeniorProject.Models;
@@ -41,6 +42,7 @@ namespace SeniorProject.Services
 
                 try
                 {
+                    _logger.LogInformation($"Starting to process queued file: {filePath}");
                     using (var scope = _serviceScopeFactory.CreateScope())
                     {
                         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -58,6 +60,7 @@ namespace SeniorProject.Services
 
         private async Task ProcessFileAsync(string zipPath, ApplicationDbContext _db)
         {
+             var sw = System.Diagnostics.Stopwatch.StartNew();
              string uploadFolder = Path.GetDirectoryName(zipPath);
              string extractPath = Path.Combine(uploadFolder, "extracted");
 
@@ -75,7 +78,7 @@ namespace SeniorProject.Services
             try
             {
                 // clear all old products to ensure fresh data for the day
-                //await _db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [ImportedProducts]");
+                await _db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [ImportedProducts]");
                
 
                 var categoryMap = new Dictionary<string, string>
@@ -89,15 +92,15 @@ namespace SeniorProject.Services
                 {
                     { "68134", "Sofia" },
                     { "56784", "Plovdiv" },
-                    { "10135", "Varna" }
+                    { "10135", "Varna" },
+                    { "04279", "Blagoevgrad" },
+                    { "07079", "Burgas" }
                 };
 
                 var existingTowns = await _db.Towns.ToDictionaryAsync(t => t.Name, t => t.Id); 
                 var existingChains = await _db.RetailChains.ToDictionaryAsync(c => c.Name, c => c.Id);
                 var newProducts = new List<ImportedProduct>();
 
-                // Load all existing hashes and clean names into a dictionary so we don't have to query the database 10,000 times
-                // We use GroupBy to avoid a Duplicate Key crash just in case historical bad data is present
                 var existingWordsCache = await _db.ImportedProducts
                     .Select(p => new { p.NameHash, p.CleanName })
                     .Distinct()
@@ -110,6 +113,20 @@ namespace SeniorProject.Services
                 var importTimestamp = DateTime.UtcNow; 
                 foreach (var file in Directory.GetFiles(extractPath, "*.csv", SearchOption.AllDirectories))
                 {
+                    string rawFileName = Path.GetFileNameWithoutExtension(file);
+                    string actualChainName = rawFileName;
+                    int parenIndex = rawFileName.IndexOf('(');
+                    
+                    if (parenIndex > 0)
+                    {
+                        actualChainName = rawFileName.Substring(0, parenIndex).Trim();
+                    }
+                    else if (rawFileName.Contains("_"))
+                    {
+                        // Some files might be named like Kaufland_Sofia.csv
+                        actualChainName = rawFileName.Substring(0, rawFileName.IndexOf('_')).Trim();
+                    }
+
                     using (var reader = new StreamReader(file, encoding))
                     {
                         reader.ReadLine();
@@ -120,17 +137,23 @@ namespace SeniorProject.Services
 
                             if (string.IsNullOrWhiteSpace(line)) continue;
 
-                            var cols = line.Split(new[] { "\",\"" }, StringSplitOptions.None);
+                            var cols = Regex.Split(line, ",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+                            for (int i = 0; i < cols.Length; i++)
+                            {
+                                cols[i] = cols[i].Trim('"');
+                            }
+
                             if (cols.Length < 7) continue;
 
-                            string townCode = cols[0].Trim('"');
+                            string townCode = cols[0];
+                            string storeAddress = cols[1].Trim(); // individual store location (e.g. "МАГАЗИН 101 МЛАДОСТ 4")
                             string productName = cols[2].TrimStart('=', ',', '+', '.', '*', '-', ' ').Trim();
                             
                             string cleanName = productName.ToCleanSortedString();
 
                             string categoryCode = cols[4];
                             string priceText = cols[5];
-                            string promoText = cols[6].Trim('"');
+                            string promoText = cols[6];
 
                             string townName = townCode;
                             if (townMap.ContainsKey(townCode))
@@ -149,11 +172,12 @@ namespace SeniorProject.Services
                                 continue;
                             }
 
+                            decimal? parsedPromoPrice = null;
                             if (!string.IsNullOrEmpty(promoText))
                             {
                                 if (decimal.TryParse(promoText, System.Globalization.CultureInfo.InvariantCulture, out decimal promo) && promo > 0)
                                 {
-                                    price = promo;
+                                    parsedPromoPrice = promo;
                                 }
                             }
 
@@ -166,7 +190,7 @@ namespace SeniorProject.Services
                             }
                             int townId = existingTowns[townName];
 
-                            string chainName = cols[1];
+                            string chainName = actualChainName;
                             if (!existingChains.ContainsKey(chainName))
                             {
                                 var newChain = new RetailChain { Name = chainName };
@@ -189,10 +213,12 @@ namespace SeniorProject.Services
                             {
                                 Name = productName,
                                 ProductCode = cols[3],
+                                StoreAddress = storeAddress,
                                 CleanName = cleanName,
                                 NameHash = nameHash,
                                 Category = category,
                                 Price = price,
+                                PromoPrice = parsedPromoPrice,
                                 TownId = townId,
                                 RetailChainId = chainId,
                                 ImportDate = importTimestamp
@@ -219,6 +245,8 @@ namespace SeniorProject.Services
             finally
             {
                 _db.ChangeTracker.AutoDetectChangesEnabled = true;
+                sw.Stop();
+                _logger.LogInformation($"File upload and background processing completed in {sw.ElapsedMilliseconds} ms ({sw.Elapsed.TotalSeconds:F2} seconds).");
             }
         }
     }

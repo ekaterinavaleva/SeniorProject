@@ -2,7 +2,9 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SeniorProject.Data;
+using SeniorProject.Extensions;
 using SeniorProject.Models;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace SeniorProject.Controllers
 {
@@ -11,11 +13,13 @@ namespace SeniorProject.Controllers
     {
         private readonly ILogger<HomeController> _logger;
         private readonly ApplicationDbContext _db;
+        private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
-        public HomeController(ILogger<HomeController> logger, ApplicationDbContext db)
+        public HomeController(ILogger<HomeController> logger, ApplicationDbContext db, Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
         {
             _logger = logger;
             _db = db;
+            _cache = cache;
         }
 
         public IActionResult Index()
@@ -25,7 +29,7 @@ namespace SeniorProject.Controllers
 
         // isolate promotions logic
         // cache the data for the promo page for 1h
-        [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
+        [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> Promotions(string? store)
         {
             _db.Database.SetCommandTimeout(300);
@@ -37,35 +41,40 @@ namespace SeniorProject.Controllers
                 var recentDate = await _db.ImportedProducts.MaxAsync(p => (DateTime?)p.ImportDate) ?? DateTime.UtcNow;
                 viewModel.LastUpdatedDate = recentDate;
 
-                var promosQuery = await _db.ImportedProducts
-                    .AsNoTracking()
-                    .Include(p => p.RetailChain)
-                    .Where(p => p.ImportDate == recentDate && p.PromoPrice != null)
-                    .ToListAsync();
+                var promoGroups = await _cache.GetOrCreateAsync("PromosByChain_Cache", async entry => 
+                {
+                    entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24);
 
-                var knownChains = new[] {
-                    "Kaufland", "Lidl", "Billa", "T-Market", "Fantastico",
-                    "Кауфланд", "Лидл", "Билла", "Т-Маркет", "Т Маркет", "Фантастико", "T Market"
-                };
+                    var promosQuery = await _db.ImportedProducts
+                        .AsNoTracking()
+                        .Include(p => p.RetailChain)
+                        .Where(p => p.ImportDate == recentDate && p.PromoPrice != null)
+                        .ToListAsync();
 
-                var promoGroups = promosQuery
-                    .Where(p => p.RetailChain != null && knownChains.Any(c => p.RetailChain.Name.Contains(c, StringComparison.OrdinalIgnoreCase)))
-                    .GroupBy(p => knownChains.First(c => p.RetailChain.Name.Contains(c, StringComparison.OrdinalIgnoreCase)))
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.GroupBy(p => p.Name)
-                              .Select(pg => pg.First())
-                              .Select(p => new PromoProductDto
-                              {
-                                  ProductName = p.Name,
-                                  PromoPrice = p.PromoPrice!.Value,
-                                  RegularPrice = p.Price,
-                                  PercentDiscount = p.Price > 0 ? Math.Round((1 - (double)(p.PromoPrice.Value / p.Price)) * 100) : 0,
-                              })
-                        .OrderByDescending(p => p.PercentDiscount)
-                        .Take(50)
-                        .ToList()
-                    );
+                    var knownChains = new[] {
+                        "Kaufland", "Lidl", "Billa", "T-Market", "Fantastico",
+                        "Кауфланд", "Лидл", "Билла", "Т-Маркет", "Т Маркет", "Фантастико", "T Market"
+                    };
+
+                    return promosQuery
+                        .Where(p => p.RetailChain != null && knownChains.Any(c => p.RetailChain.Name.Contains(c, StringComparison.OrdinalIgnoreCase)))
+                        .GroupBy(p => knownChains.First(c => p.RetailChain.Name.Contains(c, StringComparison.OrdinalIgnoreCase)))
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.GroupBy(p => p.Name)
+                                  .Select(pg => pg.First())
+                                  .Select(p => new PromoProductDto
+                                  {
+                                      ProductName = p.Name,
+                                      PromoPrice = p.PromoPrice!.Value,
+                                      RegularPrice = p.Price,
+                                      PercentDiscount = p.Price > 0 ? Math.Round((1 - (double)(p.PromoPrice.Value / p.Price)) * 100) : 0,
+                                  })
+                            .OrderByDescending(p => p.PercentDiscount)
+                            .Take(50)
+                            .ToList()
+                        );
+                });
 
                 viewModel.PromosByChain = promoGroups;
 
@@ -87,13 +96,10 @@ namespace SeniorProject.Controllers
             }
         }
 
-        // isolate product search logic
-        // cache the data for the search page for 1h
-        [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
+        //  same approach as the custom basket comparison
+        [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> ProductSearch(string? q, int? townId)
         {
-            _db.Database.SetCommandTimeout(300);
-
             var viewModel = new HomeViewModel
             {
                 SearchQuery = q,
@@ -103,43 +109,79 @@ namespace SeniorProject.Controllers
             try
             {
                 var allTowns = await _db.Towns.OrderBy(t => t.Name).ToListAsync();
-                var allowedTowns = new[] { "Burgas", "Sofia", "Varna", "Plovdiv", "Blagoevgrad", "Бургас", "София", "Варна", "Пловдив", "Благоевград" };
                 viewModel.AvailableTowns = allTowns
-                    .Where(t => allowedTowns.Any(a => string.Equals(a, t.Name, StringComparison.OrdinalIgnoreCase)))
+                    .Where(t => t.Name.Any(char.IsLetter)
+                             && t.Name != "Blagoevgrad"
+                             && t.Name != "Благоевград")
                     .ToList();
-
-                var query = _db.ImportedProducts
-                    .AsNoTracking()
-                    .Include(p => p.Town)
-                    .Include(p => p.RetailChain)
-                    .AsQueryable();
-
-                if (!string.IsNullOrWhiteSpace(q))
-                {
-                    query = query.Where(p => p.Name.Contains(q));
-                }
-
-                if (townId.HasValue)
-                {
-                    query = query.Where(p => p.TownId == townId);
-                }
 
                 ViewBag.Query = q;
                 ViewBag.TownId = townId;
 
-                viewModel.SearchResults = await query
+                if (string.IsNullOrWhiteSpace(q))
+                {
+                    return View(viewModel);
+                }
+
+                var cacheKey = townId.HasValue
+                    ? $"ProductSearchCache_Town_{townId.Value}"
+                    : "ProductSearchCache_Global";
+
+                var cachedProducts = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(48);
+
+                    var dbQuery = _db.ImportedProducts
+                        .AsNoTracking()
+                        .Include(p => p.Town)
+                        .Include(p => p.RetailChain)
+                        .AsQueryable();
+
+                    if (townId.HasValue)
+                    {
+                        dbQuery = dbQuery.Where(p => p.TownId == townId.Value);
+                    }
+
+                    var latestDate = await dbQuery.MaxAsync(p => (DateTime?)p.ImportDate);
+                    if (latestDate.HasValue)
+                    {
+                        dbQuery = dbQuery.Where(p => p.ImportDate == latestDate.Value);
+                    }
+
+                    return await dbQuery
+                        .Select(p => new SearchResultDto
+                        {
+                            ProductName = p.Name,
+                            ChainName = p.RetailChain != null ? p.RetailChain.Name : "",
+                            TownName = p.Town != null ? p.Town.Name : "",
+                            Category = p.Category,
+                            Price = p.Price,
+                            PromoPrice = p.PromoPrice,
+                            CleanName = p.CleanName
+                        })
+                        .ToListAsync();
+                });
+
+                if (cachedProducts == null)
+                {
+                    return View(viewModel);
+                }
+
+                var cleanQuery = q.ToCleanSortedString();
+                var searchWords = cleanQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                IEnumerable<SearchResultDto> filtered = cachedProducts;
+                foreach (var word in searchWords)
+                {
+                    filtered = filtered.Where(p =>
+                        !string.IsNullOrEmpty(p.CleanName) &&
+                        p.CleanName.Contains(word, StringComparison.OrdinalIgnoreCase));
+                }
+
+                viewModel.SearchResults = filtered
                     .OrderBy(p => p.Price)
                     .Take(200)
-                    .Select(p => new SearchResultDto
-                    {
-                        ProductName = p.Name,
-                        ChainName = p.RetailChain != null ? p.RetailChain.Name : "",
-                        TownName = p.Town != null ? p.Town.Name : "",
-                        Category = p.Category,
-                        Price = p.Price,
-                        PromoPrice = p.PromoPrice
-                    })
-                    .ToListAsync();
+                    .ToList();
 
                 return View(viewModel);
             }
@@ -148,6 +190,19 @@ namespace SeniorProject.Controllers
                 _logger.LogError(ex, "Error loading product search page.");
                 return View(new HomeViewModel()); 
             }
+        }
+
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        [HttpGet]
+        public async Task<IActionResult> DebugChains()
+        {
+            var chains = await _db.RetailChains.Select(c => new { c.Id, c.Name }).ToListAsync();
+            return Json(chains);
+        }
+
+        public IActionResult Privacy()
+        {
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]

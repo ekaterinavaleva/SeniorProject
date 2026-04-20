@@ -263,6 +263,9 @@ namespace SeniorProject.Data.Migrations
                     b.Property<int>("RetailChainId")
                         .HasColumnType("int");
 
+                    b.Property<string>("StoreAddress")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("TownId")
                         .HasColumnType("int");
 

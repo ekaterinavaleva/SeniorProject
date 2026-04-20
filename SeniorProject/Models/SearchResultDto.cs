@@ -8,5 +8,6 @@ namespace SeniorProject.Models
         public string Category { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public decimal? PromoPrice { get; set; }
+        public string CleanName { get; set; } = string.Empty;
     }
 }

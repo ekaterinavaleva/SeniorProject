@@ -6,14 +6,14 @@ namespace SeniorProject.Services
 {
     public interface IBackgroundTaskQueue
     {
-        void QueueBackgroundWorkItem(string workItem);
-        Task<string> DequeueAsync(CancellationToken cancellationToken);
+        void QueueBackgroundWorkItem(string workItem); 
+        Task<string> DequeueAsync(CancellationToken cancellationToken);  
     }
 
     public class BackgroundTaskQueue : IBackgroundTaskQueue
     {
-        private readonly ConcurrentQueue<string> _workItems = new ConcurrentQueue<string>();
-        private readonly SemaphoreSlim _signal = new SemaphoreSlim(0);
+        private readonly ConcurrentQueue<string> _workItems = new ConcurrentQueue<string>(); 
+        private readonly SemaphoreSlim _signal = new SemaphoreSlim(0); 
 
         public void QueueBackgroundWorkItem(string workItem)
         {
@@ -23,7 +23,7 @@ namespace SeniorProject.Services
             }
 
             _workItems.Enqueue(workItem);
-            _signal.Release();
+            _signal.Release(); 
         }
 
         public async Task<string> DequeueAsync(CancellationToken cancellationToken)

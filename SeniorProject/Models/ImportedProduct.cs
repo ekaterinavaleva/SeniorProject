@@ -17,6 +17,10 @@ namespace SeniorProject.Models
 
         public string ProductCode { get; set; }
 
+        // resolve old saved baskets that stored the store address as the winning supermarket
+        [System.ComponentModel.DataAnnotations.MaxLength(500)]
+        public string? StoreAddress { get; set; }
+
         public string CleanName { get; set; }
 
         public int NameHash { get; set; }

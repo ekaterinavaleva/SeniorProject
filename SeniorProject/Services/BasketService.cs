@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SeniorProject.Data;
 using SeniorProject.Models;
 using SeniorProject.Extensions;
@@ -8,48 +9,63 @@ namespace SeniorProject.Services
     public class BasketService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IMemoryCache _cache;
 
-        public BasketService(ApplicationDbContext context)
+        public BasketService(ApplicationDbContext context, IMemoryCache cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         public async Task<List<string>> SearchAsync(string query, int? townId, CancellationToken cancellationToken = default)
         {
+            if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
+            {
+                return new List<string>();
+            }
+
             var cleanQuery = query.ToCleanSortedString();
             var searchWords = cleanQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-            var baseQuery = _context.ImportedProducts.AsQueryable();
-            if (townId.HasValue && townId.Value > 0)
+            if (searchWords.Length == 0)
             {
-                baseQuery = baseQuery.Where(p => p.TownId == townId.Value);
-            }
-            
-            // get the latest import date for this town before  string searches
-            var latestDate = await baseQuery.MaxAsync(p => (DateTime?)p.ImportDate, cancellationToken);
-
-            //  text search only on the most recent batch of products
-            var sqlQuery = _context.ImportedProducts.AsQueryable();
-            
-            if (latestDate.HasValue)
-            {
-                sqlQuery = sqlQuery.Where(p => p.ImportDate == latestDate.Value);
-            }
-            if (townId.HasValue && townId.Value > 0)
-            {
-                sqlQuery = sqlQuery.Where(p => p.TownId == townId.Value); 
+                return new List<string>();
             }
 
+            var cacheKey = townId.HasValue ? $"ProductNamesCache_Town_{townId.Value}" : "GlobalProductNamesCache";
+            var allProductNames = await _cache.GetOrCreateAsync(cacheKey, async entry => 
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(48);
+                
+                var queryDb = _context.ImportedProducts.AsQueryable();
+                if (townId.HasValue) 
+                {
+                    queryDb = queryDb.Where(p => p.TownId == townId.Value);
+                }
+
+                var latestDate = await queryDb.MaxAsync(p => (DateTime?)p.ImportDate);
+                if (latestDate.HasValue)
+                {
+                    queryDb = queryDb.Where(p => p.ImportDate == latestDate.Value);
+                }
+
+                var distinctProducts = await queryDb
+                    .Select(p => new { p.Name, p.CleanName })
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+                    
+                return distinctProducts.Select(p => (p.Name, p.CleanName)).ToList();
+            });
+
+            if (allProductNames == null) return new List<string>();
+
+            var filtered = allProductNames.AsEnumerable();
             foreach (var word in searchWords)
             {
-                sqlQuery = sqlQuery.Where(p => p.CleanName.Contains(word));
+                filtered = filtered.Where(p => p.CleanName.Contains(word, StringComparison.OrdinalIgnoreCase));
             }
 
-            return await sqlQuery
-                .Select(p => p.Name)
-                .Distinct()
-                .Take(20)
-                .ToListAsync(cancellationToken);
+            return filtered.Take(20).Select(p => p.Name).Distinct().ToList();
         }
 
         public async Task<List<BasketComparisonResult>> CompareBasketAsync(List<BasketProductDetail> items, int townId)
@@ -61,11 +77,15 @@ namespace SeniorProject.Services
             }
             var results = new List<BasketComparisonResult>();
 
-            //get the existing chains in the chosen town
-            var chainsInCity = await _context.ImportedProducts
+            // distinct chain ids in the chosen town, then load the chains
+            var chainIdsInCity = await _context.ImportedProducts
                 .Where(p => p.TownId == townId)
-                .Select(p => p.RetailChain)
+                .Select(p => p.RetailChainId)
                 .Distinct()
+                .ToListAsync();
+
+            var chainsInCity = await _context.RetailChains
+                .Where(c => chainIdsInCity.Contains(c.Id))
                 .ToListAsync();
 
             var basketDictionary = new Dictionary<int, BasketProductDetail>();
@@ -155,12 +175,14 @@ namespace SeniorProject.Services
             }
             var results = new List<BasketComparisonResult>();
 
-            // this is for getting the existing chains in the chosen town
-            // same as previous code 
-            var chainsInCity = await _context.ImportedProducts
+            var chainIdsInCity = await _context.ImportedProducts
                 .Where(p => p.TownId == townId)
-                .Select(p => p.RetailChain)
+                .Select(p => p.RetailChainId)
                 .Distinct()
+                .ToListAsync();
+
+            var chainsInCity = await _context.RetailChains
+                .Where(c => chainIdsInCity.Contains(c.Id))
                 .ToListAsync();
 
             var categoryItems = new Dictionary<int, BasketProductDetail>();
@@ -172,6 +194,8 @@ namespace SeniorProject.Services
             {
                 categoryItems[item.CategoryId.Value] = item;
                 
+                if (item.CategoryId.Value < 0) continue;
+
                 var mappedHashes = await _context.ProductGroupItems
                     .Where(pgi => pgi.ProductGroupId == item.CategoryId.Value)
                     .Select(pgi => pgi.RawProductId)
@@ -181,6 +205,7 @@ namespace SeniorProject.Services
             }
 
             var allMappedHashes = categoryHashes.Values.SelectMany(x => x).Distinct().ToList();
+            var directCategoryIds = categoryItems.Keys.Where(id => id < 0).Select(id => Math.Abs(id).ToString()).ToList();
 
             var allMatchedProducts = new List<ImportedProduct>();
 
@@ -199,7 +224,7 @@ namespace SeniorProject.Services
                         .Where(p => p.TownId == townId && 
                                     p.RetailChainId == chain.Id && 
                                     p.ImportDate == latestDateForChain.Value &&
-                                    allMappedHashes.Contains(p.NameHash))
+                                    (allMappedHashes.Contains(p.NameHash) || directCategoryIds.Contains(p.Category)))
                         .ToListAsync();
 
                     allMatchedProducts.AddRange(products);
@@ -213,16 +238,28 @@ namespace SeniorProject.Services
                 var chainResult = new BasketComparisonResult { RetailChainName = chain.Name, Products = new List<BasketProductDetail>() };
                 var productsForThisChain = allMatchedProducts.Where(p => p.RetailChainId == chain.Id).ToList();
                 
-                foreach (var categoryPair in categoryHashes)
+                foreach (var itemPair in categoryItems)
                 {
-                    var categoryId = categoryPair.Key;
-                    var allowedHashes = categoryPair.Value;
-                    var originalBasketItem = categoryItems[categoryId];
+                    var categoryId = itemPair.Key;
+                    var originalBasketItem = itemPair.Value;
+                    ImportedProduct bestProduct = null;
                     
-                    var bestProduct = productsForThisChain
-                        .Where(p => allowedHashes.Contains(p.NameHash))
-                        .OrderBy(p => p.PromoPrice ?? p.Price)
-                        .FirstOrDefault();
+                    if (categoryId < 0)
+                    {
+                        string catCode = Math.Abs(categoryId).ToString();
+                        bestProduct = productsForThisChain
+                            .Where(p => p.Category == catCode)
+                            .OrderBy(p => p.PromoPrice ?? p.Price)
+                            .FirstOrDefault();
+                    }
+                    else if (categoryHashes.ContainsKey(categoryId))
+                    {
+                        var allowedHashes = categoryHashes[categoryId];
+                        bestProduct = productsForThisChain
+                            .Where(p => allowedHashes.Contains(p.NameHash))
+                            .OrderBy(p => p.PromoPrice ?? p.Price)
+                            .FirstOrDefault();
+                    }
 
                     if (bestProduct != null)
                     {
@@ -239,6 +276,8 @@ namespace SeniorProject.Services
                         chainResult.TotalPrice += totalItemPrice;
                     }
                 }
+
+
                 
                 results.Add(chainResult);
             }
