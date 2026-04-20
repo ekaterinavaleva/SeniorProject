@@ -15,9 +15,9 @@
             <form method="get" asp-action="ProductSearch">
                 <div class="row g-3">
                     <div class="col-md-5">
-                        <label class="form-label text-muted-warm">Town</label>
-                        <select name="townId" id="townSelect" class="form-select">
-                            <option value="">-- All Towns --</option>
+                        <label class="form-label text-muted-warm">City</label>
+                        <select name="townId" id="townSelect" class="form-select" required>
+                            <option value="">-- Choose City --</option>
                             @if (Model.AvailableTowns != null)
                             {
                                 foreach (var t in Model.AvailableTowns)
@@ -119,7 +119,7 @@
                 }
 
                 searchTimeout = setTimeout(function() {
-                    $.get("/Basket/SearchProducts", { term: term, townId: townId }, function (data) {
+                    $.get("/Basket/SearchProducts", { term: term, townId: $("#townSelect").val() }, function (data) {
                         var html = "";
                         data.forEach(function (item) {
                             html += `<a href="#" class="list-group-item list-group-item-action suggestion-item" data-name="${item}">${item}</a>`;

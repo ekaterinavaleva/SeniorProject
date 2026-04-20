@@ -27,7 +27,7 @@ namespace SeniorProject.Controllers
             // load towns for the filter dropdown
             var towns = await db.Towns.AsNoTracking().OrderBy(t => t.Name).ToListAsync();
             // hide unmapped numerical codes that were saved from csv imports
-            ViewBag.Towns = towns.Where(t => t.Name.Any(char.IsLetter)).ToList();
+            ViewBag.Towns = towns.Where(t => t.Name.Any(char.IsLetter) && t.Name != "Blagoevgrad" && t.Name != "Благоевград").ToList();
 
             // preserve filter state across requests
             ViewBag.GroupId = groupId;
@@ -81,29 +81,30 @@ namespace SeniorProject.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> AddToGroup(int nameHash, string productName, int groupId, string? q, int? townId)
+        public async Task<IActionResult> AddToGroup([FromForm] int nameHash, [FromForm] string productName, [FromForm] int groupId)
         {
             // avoid duplicate mappings
-            var exists = await db.ProductGroupItems
-                .AnyAsync(m => m.RawProductId == nameHash && m.ProductGroupId == groupId);
+            var existing = await db.ProductGroupItems
+                .FirstOrDefaultAsync(m => m.RawProductId == nameHash && m.ProductGroupId == groupId);
 
-            if (!exists)
+            if (existing != null)
+                return Json(new { mappingId = existing.Id });
+
+            // store the namehash in rawproductid as the matching key
+            var item = new ProductGroupItem
             {
-                // store the namehash in rawproductid as the matching key
-                db.ProductGroupItems.Add(new ProductGroupItem
-                {
-                    ProductGroupId = groupId,
-                    RawProductId = nameHash,
-                    MappedName = productName
-                });
-                await db.SaveChangesAsync();
-            }
+                ProductGroupId = groupId,
+                RawProductId = nameHash,
+                MappedName = productName
+            };
+            db.ProductGroupItems.Add(item);
+            await db.SaveChangesAsync();
 
-            return RedirectToAction(nameof(Index), new { groupId, q, townId });
+            return Json(new { mappingId = item.Id });
         }
 
         [HttpPost]
-        public async Task<IActionResult> RemoveFromGroup(int mappingId, int groupId, string? q, int? townId)
+        public async Task<IActionResult> RemoveFromGroup([FromForm] int mappingId)
         {
             var item = await db.ProductGroupItems.FindAsync(mappingId);
 
@@ -113,7 +114,7 @@ namespace SeniorProject.Controllers
                 await db.SaveChangesAsync();
             }
 
-            return RedirectToAction(nameof(Index), new { groupId, q, townId });
+            return Json(new { ok = true });
         }
     }
 

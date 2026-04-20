@@ -21,7 +21,16 @@
                     <div class="card shadow-sm h-100 border-primary">
                         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">@basket.WinningSupermarket</h5>
-                            <small>@basket.SavedDate.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</small>
+                            <div class="d-flex align-items-center gap-2">
+                                <small>@basket.SavedDate.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</small>
+                                <form method="post" action="/Basket/DeleteBasket" onsubmit="return confirm('Delete this saved basket?');" style="margin:0;">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="basketId" value="@basket.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-light ms-2" title="Delete basket" style="font-weight:bold; line-height:1; padding: 2px 7px; font-size: 1.1rem;">
+                                        &times;
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -85,7 +94,6 @@
                         priceChart.destroy();
                     }
 
-                    // Determine colors based on highest vs lowest price
                     let savedPriceColor = '';
                     let currentPriceColor = '';
                     const terracotta = '#C1440E';
@@ -93,11 +101,11 @@
                     const warmGray = '#B4AFA8';
 
                     if (data.totalSavedPrice > data.totalCurrentPrice) {
-                        savedPriceColor = terracotta;    // Saved was higher
-                        currentPriceColor = forestGreen; // Current is lower (better)
+                        savedPriceColor = terracotta;   
+                        currentPriceColor = forestGreen; 
                     } else if (data.totalSavedPrice < data.totalCurrentPrice) {
-                        savedPriceColor = forestGreen;   // Saved was lower (better)
-                        currentPriceColor = terracotta;  // Current is higher
+                        savedPriceColor = forestGreen;    
+                        currentPriceColor = terracotta; 
                     } else {
                         savedPriceColor = warmGray;
                         currentPriceColor = warmGray;
