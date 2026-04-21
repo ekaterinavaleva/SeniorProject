@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SeniorProject.Data;
 using SeniorProject.Models;
 
 namespace SeniorProject.Controllers
 {
-    public class RetailManagerMappingController(ApplicationDbContext db) : Controller
+    public class RetailManagerMappingController(ApplicationDbContext db, IMemoryCache cache) : Controller
     {
         // cache latest date so it doesn't requery on every page load
         private static DateTime? _cachedLatestDate;
@@ -38,27 +39,46 @@ namespace SeniorProject.Controllers
 
             if (groupId != null)
             {
-                // use cached latest date to avoid scanning the full table every time
-                _cachedLatestDate ??= await db.ImportedProducts
-                    .MaxAsync(p => (DateTime?)p.ImportDate);
+                var cacheKey = townId.HasValue ? $"MappingCache_Town_{townId.Value}" : "GlobalMappingCache";
+                var allProducts = await cache.GetOrCreateAsync(cacheKey, async entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(48);
 
-                var query = db.ImportedProducts
-                    .AsNoTracking()
-                    .Where(p => p.ImportDate == _cachedLatestDate);
+                    _cachedLatestDate ??= await db.ImportedProducts.MaxAsync(p => (DateTime?)p.ImportDate);
 
-                if (townId.HasValue)
-                    query = query.Where(p => p.TownId == townId.Value);
+                    var queryDb = db.ImportedProducts.AsNoTracking();
+                    if (_cachedLatestDate.HasValue)
+                        queryDb = queryDb.Where(p => p.ImportDate == _cachedLatestDate.Value);
+
+                    if (townId.HasValue)
+                        queryDb = queryDb.Where(p => p.TownId == townId.Value);
+
+                    var dbProducts = await queryDb
+                        .Select(p => new { p.NameHash, p.Name })
+                        .Distinct()
+                        .ToListAsync();
+
+                    return dbProducts.Select(p => (p.NameHash, p.Name)).ToList();
+                });
+
+                if (allProducts == null) allProducts = new List<(int, string)>();
+
+                var filteredProducts = allProducts.AsEnumerable();
 
                 if (!string.IsNullOrEmpty(q))
-                    query = query.Where(p => p.Name.Contains(q));
+                {
+                    var searchWords = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var word in searchWords)
+                    {
+                        filteredProducts = filteredProducts.Where(p => p.Name != null && p.Name.Contains(word, StringComparison.OrdinalIgnoreCase));
+                    }
+                }
 
                 // distinct products by hash, max 200 to keep the page fast
-                var distinctProducts = await query
-                    .Select(p => new { p.NameHash, p.Name })
-                    .Distinct()
+                var distinctProducts = filteredProducts
                     .OrderBy(p => p.Name)
                     .Take(200)
-                    .ToListAsync();
+                    .ToList();
 
                 // load existing mappings for the selected group
                 var mappedItems = await db.ProductGroupItems

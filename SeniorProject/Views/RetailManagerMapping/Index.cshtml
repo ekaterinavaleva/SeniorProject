@@ -1,60 +1,154 @@
-﻿@model List<string>
+@using SeniorProject.Controllers
+@model List<MappedProductViewModel>
 
-<h2>Map product names to groups</h2>
+<div class="container mt-4">
+    <h2>Map Product Names to Groups</h2>
 
-<form method="get" asp-action="Index">
-    <label>Group:</label>
-    <select name="groupId">
-        <option value="">-- Select group --</option>
-        <option value="1">Test Group (Dairy)</option>
-        <option value="2">Test Group (Meat)</option>
-    </select>
+    <form method="get" asp-action="Index" class="row g-2 align-items-end mb-3">
+        <div class="col-auto">
+            <label class="form-label">Group</label>
+            <select name="groupId" class="form-select">
+                <option value="">-- Select group --</option>
+                @foreach (var g in ViewBag.Groups)
+                {
+                    if (ViewBag.GroupId == g.Id)
+                    {
+                        <option value="@g.Id" selected>@g.Name (@g.Count products)</option>
+                    }
+                    else
+                    {
+                        <option value="@g.Id">@g.Name (@g.Count products)</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="form-label">Town</label>
+            <select name="townId" class="form-select" required>
+                @if (ViewBag.TownId == null)
+                {
+                    <option value="" disabled selected>-- Choose City --</option>
+                }
+                else
+                {
+                    <option value="" disabled>-- Choose City --</option>
+                }
+                @if (ViewBag.Towns != null)
+                {
+                    foreach (var t in ViewBag.Towns)
+                    {
+                        if (ViewBag.TownId == t.Id)
+                        {
+                            <option value="@t.Id" selected>@t.Name</option>
+                        }
+                        else
+                        {
+                            <option value="@t.Id">@t.Name</option>
+                        }
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="form-label">Search</label>
+            <input type="text" name="q" value="@ViewBag.Query"
+                   placeholder="e.g. добруджа, верея" class="form-control" />
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+    </form>
 
-    <label>Search:</label>
-    <input type="text" name="q" value="@ViewBag.Query" placeholder="e.g. добруджа, верея" />
+    <hr />
 
-    <button type="submit">Search</button>
-</form>
-
-<hr />
-
-@if (ViewBag.GroupId == null)
-{
-    <p>Select a group to start scanning the files.</p>
-}
-else
-{
-    if (Model.Count == 0)
+    @if (ViewBag.GroupId == null)
     {
-        <p>No products found. Try a different search term.</p>
+        <p class="text-muted">Select a group to start mapping products.</p>
+    }
+    else if (Model.Count == 0)
+    {
+        <p class="text-muted">No products found. Try a different search term or town.</p>
     }
     else
     {
-        <p>Found @Model.Count product names .</p>
-
-        <table>
-            <thead>
+        <p>Found <strong>@Model.Count</strong> unique products.</p>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark">
                 <tr>
-                    <th>Product name</th>
-                    <th>Action</th>
+                    <th>Product Name</th>
+                    <th style="width: 150px;">Action</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var name in Model)
+                @foreach (var p in Model)
                 {
                     <tr>
-                        <td>@name</td>
+                        <td>@p.Name</td>
                         <td>
-                            <form asp-action="Add" method="post">
-                                <input type="hidden" name="groupId" value="@ViewBag.GroupId" />
-                                <input type="hidden" name="productName" value="@name" />
-                                <button type="submit">Add to group</button>
-                            </form>
+                            @if (!p.IsMapped)
+                            {
+                                <button class="btn btn-sm btn-primary mapping-btn"
+                                        data-hash="@p.NameHash"
+                                        data-name="@p.Name"
+                                        data-group="@ViewBag.GroupId"
+                                        data-mapping=""
+                                        data-mapped="false">Add</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-danger mapping-btn"
+                                        data-hash="@p.NameHash"
+                                        data-name="@p.Name"
+                                        data-group="@ViewBag.GroupId"
+                                        data-mapping="@p.MappingId"
+                                        data-mapped="true">Remove</button>
+                            }
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     }
+</div>
+
+@section Scripts {
+<script>
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.mapping-btn');
+    if (!btn) return;
+
+    btn.disabled = true;
+    var isMapped = btn.dataset.mapped === 'true';
+    var body = new FormData();
+
+    if (!isMapped) {
+        body.append('nameHash', btn.dataset.hash);
+        body.append('productName', btn.dataset.name);
+        body.append('groupId', btn.dataset.group);
+
+        fetch('/RetailManagerMapping/AddToGroup', { method: 'POST', body: body })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                btn.dataset.mapping = d.mappingId;
+                btn.dataset.mapped = 'true';
+                btn.textContent = 'Remove';
+                btn.className = 'btn btn-sm btn-danger mapping-btn';
+                btn.disabled = false;
+            });
+    } else {
+        body.append('mappingId', btn.dataset.mapping);
+
+        fetch('/RetailManagerMapping/RemoveFromGroup', { method: 'POST', body: body })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+                btn.dataset.mapping = '';
+                btn.dataset.mapped = 'false';
+                btn.textContent = 'Add';
+                btn.className = 'btn btn-sm btn-primary mapping-btn';
+                btn.disabled = false;
+            });
+    }
+});
+</script>
 }
 

@@ -67,8 +67,14 @@
         <h5 class="modal-title" id="priceTrendModalLabel">Price Comparison</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <canvas id="priceTrendChart" style="max-height: 400px;"></canvas>
+      <div class="modal-body position-relative">
+        <div id="chartLoading" class="text-center py-5" style="display:none;">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading price data...</p>
+        </div>
+        <canvas id="priceTrendChart" style="max-height: 400px; display:none;"></canvas>
       </div>
     </div>
   </div>
@@ -81,6 +87,10 @@
 
         function viewPriceTrend(basketId, storeName) {
             const modal = new bootstrap.Modal(document.getElementById('priceTrendModal'));
+            
+            document.getElementById('chartLoading').style.display = 'block';
+            document.getElementById('priceTrendChart').style.display = 'none';
+            
             modal.show();
 
             fetch('/Basket/GetBasketPriceComparison?basketId=' + basketId)
@@ -88,6 +98,9 @@
                     return response.json();
                 })
                 .then(function(data) {
+                    document.getElementById('chartLoading').style.display = 'none';
+                    document.getElementById('priceTrendChart').style.display = 'block';
+
                     const ctx = document.getElementById('priceTrendChart').getContext('2d');
                     
                     if (priceChart) {
@@ -169,6 +182,7 @@
                 })
                 .catch(function(err) {
                     console.error('Error fetching price trend:', err);
+                    document.getElementById('chartLoading').style.display = 'none';
                     alert("Could not load price comparison.");
                 });
         }

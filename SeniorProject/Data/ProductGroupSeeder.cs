@@ -11,25 +11,16 @@ namespace SeniorProject.Data
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            //  17 subcategories that the retail manager can map for the user's small basket
+            //  subcategories that the retail manager can map for the user's small basket
             string[] exactCategories = new[]
             {
-                "Брашно тип 500 (1 кг.)",
                 "Хляб \"Добруджа\" (600-650 гр.)",
                 "Ориз, български бял (1 кг.)",
-                "Цяло пиле, охладено (1 кг.)",
                 "Свински бут, без кост (1 кг.)",
                 "Кренвирш, свински, насипни (1 кг.)",
                 "Прясно мляко, 3% (1 л.)",
                 "Кисело мляко, 400 гр. (3,6%)",
-                "Сирене, краве, насипно (1 кг.)",
                 "Яйца, кокоши, М размер (10 броя)",
-                "Олио, слънчогледово (1 л.)",
-                "Домати, червени (1 кг.)",
-                "Краставици, дългоплодни (1 кг.)",
-                "Картофи (1 кг.)",
-                "Ябълки (1 кг.)",
-                "Лимони (1 кг.)",
                 "Бял боб, пакетиран (1 кг.)"
             };
 

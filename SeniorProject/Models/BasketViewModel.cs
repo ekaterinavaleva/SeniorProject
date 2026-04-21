@@ -3,6 +3,7 @@ namespace SeniorProject.Models
     public class BasketComparisonResult
     {
         public string RetailChainName { get; set; }
+        public string StoreAddress { get; set; }
         public decimal TotalPrice { get; set; }
         public List<BasketProductDetail> Products { get; set; }
     }
@@ -26,7 +27,8 @@ namespace SeniorProject.Models
 
     public class SaveBasketRequest
     {
-        public string WinningSupermarket { get; set; }
+        public string WinningSupermarket { get; set; }  
+        public string DisplayChainName { get; set; }    
         public decimal TotalPrice { get; set; }
         public int? TownId { get; set; }
         public List<BasketProductDetail> Items { get; set; }

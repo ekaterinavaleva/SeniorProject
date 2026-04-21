@@ -159,6 +159,24 @@ namespace SeniorProject.Controllers
                     // comparing the custom basket using string search
                     results = await _basketService.CompareBasketAsync(request.Items, request.TownId);
                 }
+
+                // each result to use store address but display the chain
+                foreach (var result in results)
+                {
+                    var chain = await _db.RetailChains
+                        .FirstOrDefaultAsync(c => c.Name == result.RetailChainName);
+
+                    if (chain != null)
+                    {
+                        result.StoreAddress = await _db.ImportedProducts
+                            .Where(p => p.RetailChainId == chain.Id
+                                     && (request.TownId == 0 || p.TownId == request.TownId)
+                                     && p.StoreAddress != null)
+                            .Select(p => p.StoreAddress)
+                            .FirstOrDefaultAsync();
+                    }
+                }
+
                 return Json(results);
             }
             catch (Exception ex)
@@ -237,12 +255,10 @@ namespace SeniorProject.Controllers
 
                 var allChains = await _db.RetailChains.ToListAsync();
 
-                var matchedChain = allChains.FirstOrDefault(c =>
-                    string.Equals(c.Name, basket.WinningSupermarket, StringComparison.OrdinalIgnoreCase));
+                RetailChain matchedChain = null;
 
                 if (matchedChain == null)
                 {
-                    // look up any product with that store address and finds its chain
                     var chainIdFromAddress = await _db.ImportedProducts
                         .Where(p => p.StoreAddress == basket.WinningSupermarket)
                         .Select(p => (int?)p.RetailChainId)
