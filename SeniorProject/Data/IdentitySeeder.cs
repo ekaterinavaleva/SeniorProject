@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace SeniorProject.Data
 {
@@ -60,6 +61,21 @@ namespace SeniorProject.Data
 
                     // after creating it, we add it to the manager role
                     await userManager.AddToRoleAsync(user, "RetailManager");
+                }
+            }
+
+            // assign the user role to any registered user who has no role yet
+            using (var scope = services.CreateScope())
+            {
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+
+                foreach (var user in await userManager.Users.ToListAsync())
+                {
+                    var roles = await userManager.GetRolesAsync(user);
+                    if (roles.Count == 0)
+                    {
+                        await userManager.AddToRoleAsync(user, "User");
+                    }
                 }
             }
         }

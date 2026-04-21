@@ -6,17 +6,15 @@
 <div class="container mt-4">
     <h2>Manage Roles for @ViewBag.UserEmail</h2>
     <form asp-action="ManageRoles" asp-route-userId="@ViewBag.UserId" method="post">
-        @foreach (var role in Model)
+        @for (int i = 0; i < Model.Count; i++)
         {
             <div class="form-check">
-                <input type="checkbox" name="model[@Model.IndexOf(role)].Selected"
+                <input type="hidden" name="[@i].RoleName" value="@Model[i].RoleName" />
+                <input type="hidden" name="[@i].RoleId" value="@Model[i].RoleId" />
+                <input type="checkbox" name="[@i].Selected" value="true"
                        class="form-check-input"
-                       @(role.Selected ? "checked" : "") />
-                <input type="hidden" name="model[@Model.IndexOf(role)].RoleName"
-                       value="@role.RoleName" />
-                <input type="hidden" name="model[@Model.IndexOf(role)].RoleId"
-                       value="@role.RoleId" />
-                <label class="form-check-label">@role.RoleName</label>
+                       @(Model[i].Selected ? "checked" : "") />
+                <label class="form-check-label">@Model[i].RoleName</label>
             </div>
         }
         <button type="submit" class="btn btn-success mt-3">Save Changes</button>

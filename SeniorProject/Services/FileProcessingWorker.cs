@@ -93,7 +93,6 @@ namespace SeniorProject.Services
                     { "68134", "Sofia" },
                     { "56784", "Plovdiv" },
                     { "10135", "Varna" },
-                    { "04279", "Blagoevgrad" },
                     { "07079", "Burgas" }
                 };
 
@@ -123,7 +122,6 @@ namespace SeniorProject.Services
                     }
                     else if (rawFileName.Contains("_"))
                     {
-                        // Some files might be named like Kaufland_Sofia.csv
                         actualChainName = rawFileName.Substring(0, rawFileName.IndexOf('_')).Trim();
                     }
 

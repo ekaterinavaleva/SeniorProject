@@ -9,5 +9,7 @@ namespace SeniorProject.Models
         public decimal Price { get; set; }
         public decimal? PromoPrice { get; set; }
         public string CleanName { get; set; } = string.Empty;
+        public int ChainId { get; set; }
+        public int TownId { get; set; }
     }
 }

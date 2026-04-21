@@ -96,7 +96,8 @@ namespace SeniorProject.Controllers
             }
         }
 
-        //  same approach as the custom basket comparison
+        // same approach as the custom basket comparison
+        // resolve names from cached dictionaries
         [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> ProductSearch(string? q, int? townId)
         {
@@ -118,14 +119,27 @@ namespace SeniorProject.Controllers
                 ViewBag.Query = q;
                 ViewBag.TownId = townId;
 
-                if (string.IsNullOrWhiteSpace(q))
+                // town is required — same as basket comparison
+                if (!townId.HasValue || string.IsNullOrWhiteSpace(q))
                 {
                     return View(viewModel);
                 }
 
-                var cacheKey = townId.HasValue
-                    ? $"ProductSearchCache_Town_{townId.Value}"
-                    : "ProductSearchCache_Global";
+                // cache small lookup dictionaries for town and chain names (no Include needed)
+                var townNames = await _cache.GetOrCreateAsync("TownNamesDict", async entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(48);
+                    return await _db.Towns.AsNoTracking().ToDictionaryAsync(t => t.Id, t => t.Name);
+                });
+
+                var chainNames = await _cache.GetOrCreateAsync("ChainNamesDict", async entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(48);
+                    return await _db.RetailChains.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name);
+                });
+
+                // cache products for this town 
+                var cacheKey = $"ProductSearchCache_Town_{townId.Value}";
 
                 var cachedProducts = await _cache.GetOrCreateAsync(cacheKey, async entry =>
                 {
@@ -133,14 +147,7 @@ namespace SeniorProject.Controllers
 
                     var dbQuery = _db.ImportedProducts
                         .AsNoTracking()
-                        .Include(p => p.Town)
-                        .Include(p => p.RetailChain)
-                        .AsQueryable();
-
-                    if (townId.HasValue)
-                    {
-                        dbQuery = dbQuery.Where(p => p.TownId == townId.Value);
-                    }
+                        .Where(p => p.TownId == townId.Value);
 
                     var latestDate = await dbQuery.MaxAsync(p => (DateTime?)p.ImportDate);
                     if (latestDate.HasValue)
@@ -148,12 +155,13 @@ namespace SeniorProject.Controllers
                         dbQuery = dbQuery.Where(p => p.ImportDate == latestDate.Value);
                     }
 
+                    // select only the columns needed
                     return await dbQuery
                         .Select(p => new SearchResultDto
                         {
                             ProductName = p.Name,
-                            ChainName = p.RetailChain != null ? p.RetailChain.Name : "",
-                            TownName = p.Town != null ? p.Town.Name : "",
+                            ChainId = p.RetailChainId,
+                            TownId = p.TownId,
                             Category = p.Category,
                             Price = p.Price,
                             PromoPrice = p.PromoPrice,
@@ -178,10 +186,22 @@ namespace SeniorProject.Controllers
                         p.CleanName.Contains(word, StringComparison.OrdinalIgnoreCase));
                 }
 
-                viewModel.SearchResults = filtered
-                    .OrderBy(p => p.Price)
+                // keep only the cheapest product per chain
+                var deduped = filtered
+                    .GroupBy(p => p.ChainId)
+                    .Select(g => g.OrderBy(p => p.PromoPrice ?? p.Price).First())
+                    .OrderBy(p => p.PromoPrice ?? p.Price)
                     .Take(200)
                     .ToList();
+
+                // give names from cached dictionaries
+                foreach (var item in deduped)
+                {
+                    item.ChainName = chainNames != null && chainNames.TryGetValue(item.ChainId, out var cn) ? cn : "";
+                    item.TownName = townNames != null && townNames.TryGetValue(item.TownId, out var tn) ? tn : "";
+                }
+
+                viewModel.SearchResults = deduped;
 
                 return View(viewModel);
             }
