@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -6,6 +7,7 @@ using SeniorProject.Models;
 
 namespace SeniorProject.Controllers
 {
+    [Authorize(Roles = "Admin, RetailManager")]
     public class RetailManagerMappingController(ApplicationDbContext db, IMemoryCache cache) : Controller
     {
         // cache latest date so it doesn't requery on every page load

@@ -1,5 +1,6 @@
 using Xunit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SeniorProject.Data;
 using SeniorProject.Services;
 using SeniorProject.Models;
@@ -37,7 +38,7 @@ namespace SeniorProject.Tests
 
             await context.SaveChangesAsync();
 
-            var service = new BasketService(context);
+            var service = new BasketService(context, new MemoryCache(new MemoryCacheOptions()));
 
             var basketItems = new List<BasketProductDetail>
             {
@@ -76,7 +77,7 @@ namespace SeniorProject.Tests
 
             await context.SaveChangesAsync();
 
-            var service = new BasketService(context);
+            var service = new BasketService(context, new MemoryCache(new MemoryCacheOptions()));
 
             // add it to basket with quantity 3
             var basketItems = new List<BasketProductDetail>
@@ -126,7 +127,7 @@ namespace SeniorProject.Tests
 
             await context.SaveChangesAsync();
 
-            var service = new BasketService(context);
+            var service = new BasketService(context, new MemoryCache(new MemoryCacheOptions()));
 
             var basketItems = new List<BasketProductDetail>
             {
@@ -164,7 +165,7 @@ namespace SeniorProject.Tests
 
             await context.SaveChangesAsync();
 
-            var service = new BasketService(context);
+            var service = new BasketService(context, new MemoryCache(new MemoryCacheOptions()));
 
             // search for "брашно"
             var results = await service.SearchAsync("брашно", 1);
