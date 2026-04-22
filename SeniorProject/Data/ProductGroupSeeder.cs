@@ -39,7 +39,15 @@ namespace SeniorProject.Data
                 }
             }
 
-            // if missing categories were found and added, save the changes to the database
+            // remove categories that are no longer in exactCategories
+            var categoriesToRemove = existingGroups.Where(g => !exactCategories.Contains(g.Name)).ToList();
+            if (categoriesToRemove.Any())
+            {
+                db.ProductGroups.RemoveRange(categoriesToRemove);
+                changed = true;
+            }
+
+            // if missing categories were found and added, or old ones removed, save the changes to the database
             if (changed)
             {
                 await db.SaveChangesAsync();
